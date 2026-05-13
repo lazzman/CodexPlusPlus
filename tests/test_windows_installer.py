@@ -3,6 +3,7 @@ from pathlib import Path
 
 from codex_session_delete.installers import InstallOptions
 from codex_session_delete import __version__
+from codex_session_delete import windows_installer
 from codex_session_delete.windows_installer import build_install_shortcut_script, build_uninstall_shortcut_script
 
 
@@ -38,7 +39,8 @@ def test_build_install_shortcut_script_contains_codex_plus_shortcuts(tmp_path):
     assert f"DisplayVersion -Value '{__version__}'" in script
 
 
-def test_default_windows_launcher_uses_current_python_executable(tmp_path):
+def test_default_windows_launcher_uses_current_python_executable(tmp_path, monkeypatch):
+    monkeypatch.setattr(windows_installer.sys, "executable", str(tmp_path / "python.exe"))
     options = InstallOptions(install_root=tmp_path)
 
     script = build_install_shortcut_script(options)
