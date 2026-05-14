@@ -50,7 +50,7 @@ def test_launch_codex_windows_allows_devtools_websocket_origin(monkeypatch):
     assert "--remote-allow-origins=http://127.0.0.1:9229" in popen_calls[0]
 
 
-def test_launch_codex_injects_detected_local_proxy(monkeypatch):
+def test_launch_codex_injects_detected_local_proxy_with_auto_proxy(monkeypatch):
     app_dir = Path("C:/Codex/app")
     popen_calls = []
     monkeypatch.delenv("HTTP_PROXY", raising=False)
@@ -59,22 +59,68 @@ def test_launch_codex_injects_detected_local_proxy(monkeypatch):
     monkeypatch.delenv("http_proxy", raising=False)
     monkeypatch.delenv("https_proxy", raising=False)
     monkeypatch.delenv("all_proxy", raising=False)
+    monkeypatch.setattr(launcher, "codex_config_proxy_bypass_hosts", lambda: set())
     monkeypatch.setattr(launcher, "local_proxy_url", lambda: "http://127.0.0.1:7897")
     monkeypatch.setattr(launcher.subprocess, "Popen", lambda args, **kw: popen_calls.append((args, kw)))
 
-    launch_codex_app(app_dir, 9229)
+    launch_codex_app(app_dir, 9229, auto_proxy=True)
 
     assert popen_calls[0][1]["env"]["HTTP_PROXY"] == "http://127.0.0.1:7897"
     assert popen_calls[0][1]["env"]["HTTPS_PROXY"] == "http://127.0.0.1:7897"
 
 
+def test_default_does_not_inject_proxy(monkeypatch):
+    monkeypatch.delenv("HTTP_PROXY", raising=False)
+    monkeypatch.delenv("HTTPS_PROXY", raising=False)
+    monkeypatch.delenv("ALL_PROXY", raising=False)
+    monkeypatch.delenv("http_proxy", raising=False)
+    monkeypatch.delenv("https_proxy", raising=False)
+    monkeypatch.delenv("all_proxy", raising=False)
+    monkeypatch.setattr(launcher, "codex_config_proxy_bypass_hosts", lambda: set())
+    monkeypatch.setattr(launcher, "local_proxy_url", lambda: (_ for _ in ()).throw(AssertionError("should not auto-detect")))
+
+    env = launcher.codex_process_environment()
+
+    assert "HTTP_PROXY" not in env
+    assert "HTTPS_PROXY" not in env
+    assert "ALL_PROXY" not in env
+
+
 def test_launch_codex_keeps_explicit_proxy(monkeypatch):
     monkeypatch.setenv("HTTPS_PROXY", "http://127.0.0.1:9999")
+    monkeypatch.setattr(launcher, "codex_config_proxy_bypass_hosts", lambda: set())
     monkeypatch.setattr(launcher, "local_proxy_url", lambda: (_ for _ in ()).throw(AssertionError("should not auto-detect")))
 
     env = launcher.codex_process_environment()
 
     assert env["HTTPS_PROXY"] == "http://127.0.0.1:9999"
+
+
+def test_codex_process_environment_adds_config_provider_to_no_proxy(monkeypatch):
+    monkeypatch.delenv("NO_PROXY", raising=False)
+    monkeypatch.setenv("HTTPS_PROXY", "http://127.0.0.1:9999")
+    monkeypatch.setattr(launcher, "codex_config_proxy_bypass_hosts", lambda: {"codex-manager.tailnet.local"})
+
+    env = launcher.codex_process_environment()
+
+    assert "codex-manager.tailnet.local" in env["NO_PROXY"].split(",")
+    assert "127.0.0.1" in env["NO_PROXY"].split(",")
+
+
+def test_codex_config_proxy_bypass_hosts_reads_provider_base_urls(tmp_path):
+    config = tmp_path / "config.toml"
+    config.write_text(
+        """
+[model_providers.codex_manager]
+base_url = "https://codex-manager.tailnet.local/v1"
+
+[model_providers.other]
+base_url = "http://127.0.0.1:8080/v1"
+""",
+        encoding="utf-8",
+    )
+
+    assert launcher.codex_config_proxy_bypass_hosts(config) == {"codex-manager.tailnet.local", "127.0.0.1"}
 
 
 def test_launch_codex_macos_uses_open_command(monkeypatch, tmp_path):
@@ -162,6 +208,18 @@ def test_cli_launch_subcommand_keeps_helper_server_alive_after_injection(monkeyp
     assert exit_code == 0
     assert waited == [(57321, 9229)]
     assert len(calls) == 1
+    assert calls[0][-1] is False
+
+
+def test_cli_launch_passes_proxy_flag(monkeypatch):
+    calls = []
+    monkeypatch.setattr(cli, "launch_and_inject", lambda *args: calls.append(args) or (FakeServer(), None))
+    monkeypatch.setattr(cli, "wait_for_shutdown", lambda server, proc: None)
+
+    exit_code = cli.main(["launch", "--proxy"])
+
+    assert exit_code == 0
+    assert calls[0][-1] is True
 
 
 def test_cli_default_db_path_uses_codex_home(monkeypatch, tmp_path):
@@ -466,6 +524,49 @@ def test_cli_launch_checks_update_before_injection(monkeypatch):
     assert events == ["cleanup", "check-update", "launch", "wait"]
 
 
+def test_cli_launch_treats_existing_healthy_helper_as_success(monkeypatch, capsys):
+    def raise_port_busy(*args):
+        raise OSError(cli.errno.EADDRINUSE, "Address already in use")
+
+    monkeypatch.setattr(cli, "launch_and_inject", raise_port_busy)
+    monkeypatch.setattr(cli, "helper_is_healthy", lambda port: port == 57321)
+    monkeypatch.setattr(cli, "log_launch_failure", lambda exc: (_ for _ in ()).throw(AssertionError("should not log healthy helper")))
+
+    exit_code = cli.main(["launch"])
+
+    assert exit_code == 0
+    assert "Codex++ helper 已在 http://127.0.0.1:57321 运行" in capsys.readouterr().out
+
+
+def test_cli_launch_logs_unhealthy_port_conflict(monkeypatch):
+    logged = []
+
+    def raise_port_busy(*args):
+        raise OSError(cli.errno.EADDRINUSE, "Address already in use")
+
+    monkeypatch.setattr(cli, "launch_and_inject", raise_port_busy)
+    monkeypatch.setattr(cli, "helper_is_healthy", lambda port: False)
+    monkeypatch.setattr(cli, "log_launch_failure", lambda exc: logged.append(exc))
+
+    with pytest.raises(OSError):
+        cli.main(["launch"])
+
+    assert len(logged) == 1
+
+
+def test_macos_codex_running_uses_process_name(monkeypatch):
+    calls = []
+
+    def fake_run(args, **kwargs):
+        calls.append((args, kwargs))
+        return type("Result", (), {"returncode": 0})()
+
+    monkeypatch.setattr(cli.subprocess, "run", fake_run)
+
+    assert cli.is_macos_codex_running() is True
+    assert calls[0][0] == ["pgrep", "-x", "Codex"]
+
+
 def test_cli_update_notice_ignores_network_errors(monkeypatch, capsys):
     monkeypatch.setattr(cli.updater, "check_for_update", lambda: (_ for _ in ()).throw(RuntimeError("offline")))
 
@@ -612,9 +713,9 @@ def test_wait_for_shutdown_waits_for_popen_like_process():
     assert server.server_close_called is True
 
 
-def test_is_macos_codex_running_falls_back_to_ps(monkeypatch):
+def test_is_macos_codex_running_falls_back_to_pgrep(monkeypatch):
     monkeypatch.setattr(cli, "is_codex_cdp_page_available", lambda debug_port=9229: False)
-    monkeypatch.setattr(cli, "is_macos_codex_process_running", lambda: True)
+    monkeypatch.setattr(cli.subprocess, "run", lambda *args, **kwargs: type("Result", (), {"returncode": 0})())
 
     assert cli.is_macos_codex_running() is True
 
@@ -623,3 +724,13 @@ def test_is_codex_cdp_page_available_returns_true_for_codex_page(monkeypatch):
     monkeypatch.setattr(cli, "list_targets", lambda debug_port: [{"type": "page", "title": "Codex", "webSocketDebuggerUrl": "ws://page"}])
 
     assert cli.is_codex_cdp_page_available() is True
+
+
+def test_is_macos_codex_running_returns_false_when_pgrep_misses(monkeypatch):
+    class Result:
+        returncode = 1
+
+    monkeypatch.setattr(cli, "is_codex_cdp_page_available", lambda debug_port=9229: False)
+    monkeypatch.setattr(cli.subprocess, "run", lambda *args, **kwargs: Result())
+
+    assert cli.is_macos_codex_running() is False

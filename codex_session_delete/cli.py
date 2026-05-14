@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import argparse
+import errno
 import os
 import subprocess
 import sys
 import traceback
 from datetime import datetime
 from pathlib import Path
+from urllib.request import urlopen
 
 from codex_session_delete.cdp import list_targets, pick_page_target
 from codex_session_delete.helper_server import HelperServer
@@ -31,6 +33,7 @@ def add_launch_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--backup-dir", type=Path, default=Path.home() / ".codex-session-delete" / "backups")
     parser.add_argument("--debug-port", type=int, default=9229)
     parser.add_argument("--helper-port", type=int, default=57321)
+    parser.add_argument("--proxy", action="store_true", default=False, help="自动探测并注入本地代理到 Codex 进程环境")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -152,8 +155,8 @@ def is_codex_cdp_page_available(debug_port: int = 9229) -> bool:
 
 
 def is_macos_codex_process_running() -> bool:
-    result = subprocess.run(["ps", "-axo", "pid=,command="], capture_output=True, text=True, check=False)
-    return any(".app/Contents/MacOS/Codex " in f"{line} " for line in result.stdout.splitlines())
+    result = subprocess.run(["pgrep", "-x", "Codex"], capture_output=True, check=False)
+    return result.returncode == 0
 
 
 def stop_existing_windows_launchers() -> None:
@@ -181,11 +184,25 @@ def stop_existing_windows_launchers() -> None:
     subprocess.run(["powershell", "-NoProfile", "-Command", script], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env=env)
 
 
+def helper_is_healthy(port: int, timeout: float = 0.8) -> bool:
+    try:
+        with urlopen(f"http://127.0.0.1:{port}/health", timeout=timeout) as response:
+            return response.status == 200
+    except Exception:
+        return False
+
+
 def run_launch(args: argparse.Namespace) -> int:
     stop_existing_windows_launchers()
     maybe_print_update_notice()
     try:
-        server, codex_proc = launch_and_inject(args.app_dir, args.db, args.backup_dir, args.debug_port, args.helper_port)
+        server, codex_proc = launch_and_inject(args.app_dir, args.db, args.backup_dir, args.debug_port, args.helper_port, args.proxy)
+    except OSError as exc:
+        if exc.errno == errno.EADDRINUSE and helper_is_healthy(args.helper_port):
+            print(f"Codex++ helper 已在 http://127.0.0.1:{args.helper_port} 运行。")
+            return 0
+        log_launch_failure(exc)
+        raise
     except Exception as exc:
         log_launch_failure(exc)
         raise

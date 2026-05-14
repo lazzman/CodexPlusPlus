@@ -14,8 +14,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit, urlunsplit
-
-import requests
+from urllib.parse import urlparse, urlsplit, urlunsplit
 
 from codex_session_delete import cdp, zed_remote
 from codex_session_delete.app_paths import resolve_codex_app_dir
@@ -604,9 +603,47 @@ def local_proxy_url() -> str | None:
     return None
 
 
-def codex_process_environment() -> dict[str, str]:
+def codex_config_proxy_bypass_hosts(config_path: Path | None = None) -> set[str]:
+    path = config_path or Path.home() / ".codex" / "config.toml"
+    try:
+        config = tomllib.loads(path.read_text(encoding="utf-8"))
+    except (OSError, tomllib.TOMLDecodeError):
+        return set()
+
+    providers = config.get("model_providers")
+    if not isinstance(providers, dict):
+        return set()
+
+    hosts: set[str] = set()
+    for provider_config in providers.values():
+        if not isinstance(provider_config, dict):
+            continue
+        base_url = provider_config.get("base_url")
+        if not isinstance(base_url, str):
+            continue
+        host = urlparse(base_url).hostname
+        if host:
+            hosts.add(host)
+    return hosts
+
+
+def _append_no_proxy_hosts(env: dict[str, str], hosts: set[str]) -> None:
+    if not hosts:
+        return
+    no_proxy = env.get("NO_PROXY", env.get("no_proxy", ""))
+    ordered_hosts = [host.strip() for host in no_proxy.split(",") if host.strip()]
+    for host in sorted({"localhost", "127.0.0.1", "::1", *hosts}):
+        if host not in ordered_hosts:
+            ordered_hosts.append(host)
+    env["NO_PROXY"] = ",".join(ordered_hosts)
+
+
+def codex_process_environment(auto_proxy: bool = False) -> dict[str, str]:
     env = os.environ.copy()
+    _append_no_proxy_hosts(env, codex_config_proxy_bypass_hosts())
     if has_proxy_environment(env):
+        return env
+    if not auto_proxy:
         return env
     proxy = local_proxy_url()
     if proxy:
@@ -717,11 +754,11 @@ def activate_packaged_app(app_user_model_id: str, arguments: str) -> int:
             ole32.CoUninitialize()
 
 
-def launch_codex_app(app_dir: Path, debug_port: int) -> Any:
+def launch_codex_app(app_dir: Path, debug_port: int, auto_proxy: bool = False) -> Any:
     app_user_model_id = packaged_app_user_model_id(app_dir) if sys.platform == "win32" else None
-    env = codex_process_environment()
+    env = codex_process_environment(auto_proxy=auto_proxy)
     if app_user_model_id:
-        proxy_keys = ("HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY")
+        proxy_keys = ("HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "NO_PROXY")
         previous = {key: os.environ.get(key) for key in proxy_keys}
         os.environ.update({key: env[key] for key in proxy_keys if key in env})
         try:
@@ -857,7 +894,14 @@ def check_and_reinject_bridge(
         return False
 
 
-def launch_and_inject(app_dir: Path | None, db_path: Path | None, backup_dir: Path, debug_port: int, helper_port: int) -> tuple[HelperServer, Any]:
+def launch_and_inject(
+    app_dir: Path | None,
+    db_path: Path | None,
+    backup_dir: Path,
+    debug_port: int,
+    helper_port: int,
+    auto_proxy: bool = False,
+) -> tuple[HelperServer, Any]:
     resolved_app_dir = resolve_codex_app_dir(app_dir)
     if resolved_app_dir is None:
         raise RuntimeError("Codex App directory not found")
@@ -877,7 +921,7 @@ def launch_and_inject(app_dir: Path | None, db_path: Path | None, backup_dir: Pa
     server = start_or_attach_helper(service, export_service, port=helper_port)
     codex_proc = None
     try:
-        codex_proc = launch_codex_app(resolved_app_dir, debug_port)
+        codex_proc = launch_codex_app(resolved_app_dir, debug_port, auto_proxy)
         server.bridge_socket = inject_with_retry(debug_port, script_path, server.port, service, export_service, runtime)
         start_bridge_watchdog(debug_port, script_path, server.port, service, export_service, runtime)
         return server, codex_proc

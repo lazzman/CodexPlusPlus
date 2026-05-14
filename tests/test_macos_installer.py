@@ -32,7 +32,8 @@ def test_install_macos_app_creates_app_bundle(tmp_path):
 
     script = executable.read_text(encoding="utf-8")
     assert "python -m codex_session_delete launch" in script
-    assert "exec" in script
+    assert "nohup /bin/sh -lc" in script
+    assert "exec" not in script
 
 
 def test_uninstall_macos_app_removes_app_bundle(tmp_path):

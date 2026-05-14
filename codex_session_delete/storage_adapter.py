@@ -168,6 +168,7 @@ class SQLiteStorageAdapter:
         self._backup_related_rows(db, tables, "thread_spawn_edges", "parent_thread_id = ? OR child_thread_id = ?", (thread_id, thread_id))
         self._backup_related_rows(db, tables, "stage1_outputs", "thread_id = ?", (thread_id,))
         self._backup_related_rows(db, tables, "agent_job_items", "assigned_thread_id = ?", (thread_id,))
+        self._backup_orphaned_codex_rows(db, tables)
 
         file_backups = self._rollout_file_backups(thread_rows)
         if file_backups:
@@ -179,6 +180,7 @@ class SQLiteStorageAdapter:
         self._delete_related_rows(db, "thread_goals", "thread_id = ?", (thread_id,))
         self._delete_related_rows(db, "thread_spawn_edges", "parent_thread_id = ? OR child_thread_id = ?", (thread_id, thread_id))
         self._delete_related_rows(db, "stage1_outputs", "thread_id = ?", (thread_id,))
+        self._delete_orphaned_codex_rows(db)
         if self._has_table(db, "agent_job_items") and self._has_columns(db, "agent_job_items", {"assigned_thread_id"}):
             db.execute("UPDATE agent_job_items SET assigned_thread_id = NULL WHERE assigned_thread_id = ?", (thread_id,))
         db.execute("DELETE FROM threads WHERE id = ?", (thread_id,))
@@ -224,11 +226,63 @@ class SQLiteStorageAdapter:
 
     def _backup_related_rows(self, db: sqlite3.Connection, tables: dict[str, list[dict[str, Any]]], table: str, where: str, params: tuple[Any, ...]) -> None:
         if self._has_table(db, table):
-            tables[table] = self._select_dicts(db, f'SELECT * FROM "{table}" WHERE {where}', params)
+            self._append_backup_rows(tables, table, self._select_dicts(db, f'SELECT * FROM "{table}" WHERE {where}', params))
 
     def _delete_related_rows(self, db: sqlite3.Connection, table: str, where: str, params: tuple[Any, ...]) -> None:
         if self._has_table(db, table):
             db.execute(f'DELETE FROM "{table}" WHERE {where}', params)
+
+    def _backup_orphaned_codex_rows(self, db: sqlite3.Connection, tables: dict[str, list[dict[str, Any]]]) -> None:
+        if self._has_table(db, "thread_spawn_edges"):
+            rows = self._select_dicts(
+                db,
+                """
+                SELECT e.* FROM thread_spawn_edges e
+                LEFT JOIN threads parent ON parent.id = e.parent_thread_id
+                LEFT JOIN threads child ON child.id = e.child_thread_id
+                WHERE parent.id IS NULL OR child.id IS NULL
+                """,
+                (),
+            )
+            self._append_backup_rows(tables, "thread_spawn_edges", rows)
+        if self._has_table(db, "agent_job_items") and self._has_columns(db, "agent_job_items", {"assigned_thread_id"}):
+            rows = self._select_dicts(
+                db,
+                """
+                SELECT i.* FROM agent_job_items i
+                LEFT JOIN threads t ON t.id = i.assigned_thread_id
+                WHERE i.assigned_thread_id IS NOT NULL AND t.id IS NULL
+                """,
+                (),
+            )
+            self._append_backup_rows(tables, "agent_job_items", rows)
+
+    def _append_backup_rows(self, tables: dict[str, list[dict[str, Any]]], table: str, rows: list[dict[str, Any]]) -> None:
+        if not rows:
+            return
+        existing = tables.setdefault(table, [])
+        for row in rows:
+            if row not in existing:
+                existing.append(row)
+
+    def _delete_orphaned_codex_rows(self, db: sqlite3.Connection) -> None:
+        if self._has_table(db, "thread_spawn_edges"):
+            db.execute(
+                """
+                DELETE FROM thread_spawn_edges
+                WHERE parent_thread_id NOT IN (SELECT id FROM threads)
+                   OR child_thread_id NOT IN (SELECT id FROM threads)
+                """
+            )
+        if self._has_table(db, "agent_job_items") and self._has_columns(db, "agent_job_items", {"assigned_thread_id"}):
+            db.execute(
+                """
+                UPDATE agent_job_items
+                SET assigned_thread_id = NULL
+                WHERE assigned_thread_id IS NOT NULL
+                  AND assigned_thread_id NOT IN (SELECT id FROM threads)
+                """
+            )
 
     def _rollout_file_backups(self, thread_rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         file_backups = []

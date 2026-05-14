@@ -62,6 +62,7 @@ class FakeRuntime:
         }
 
 
+
 def test_handle_bridge_request_lists_user_scripts(tmp_path):
     builtin = tmp_path / "builtin"
     user = tmp_path / "user"
@@ -442,7 +443,6 @@ def test_handle_bridge_request_returns_ads(tmp_path):
     assert result["ads"][0]["id"] == "runtime-ad"
 
 
-
 def test_handle_bridge_request_exports_markdown(tmp_path):
     manager = UserScriptManager(tmp_path / "builtin", tmp_path / "user", tmp_path / "config.json")
     runtime = FakeRuntime(manager)
@@ -451,9 +451,6 @@ def test_handle_bridge_request_exports_markdown(tmp_path):
 
     assert exported["status"] == "exported"
     assert exported["filename"] == "thread.md"
-
-
-
 def test_handle_bridge_request_returns_zed_remote_status(monkeypatch, tmp_path):
     from codex_session_delete import zed_remote
 

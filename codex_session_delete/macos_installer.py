@@ -58,7 +58,8 @@ def install_macos_app(options: "InstallOptions") -> None:
     (contents / "Info.plist").write_bytes(plistlib.dumps(plist))
 
     executable = macos / EXECUTABLE_NAME
-    executable.write_text(f"#!/bin/sh\nexec {_launcher_command(options)}\n", encoding="utf-8")
+    command = shlex.quote(_launcher_command(options))
+    executable.write_text(f"#!/bin/sh\nnohup /bin/sh -lc {command} >/dev/null 2>&1 &\nexit 0\n", encoding="utf-8")
     executable.chmod(executable.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
 
     _copy_codex_icon(resources)

@@ -81,6 +81,39 @@ def test_delete_codex_thread_schema_creates_backup_and_removes_thread_rows(tmp_p
         assert db.execute("SELECT assigned_thread_id FROM agent_job_items WHERE id = 'job1'").fetchone()[0] is None
 
 
+def test_delete_codex_thread_schema_prunes_stale_codex_references(tmp_path):
+    db_path = tmp_path / "state_5.sqlite"
+    rollout_path = tmp_path / "rollout.jsonl"
+    rollout_path.write_text('{"type":"message"}\n', encoding="utf-8")
+    create_codex_thread_db(db_path, rollout_path)
+    with sqlite3.connect(db_path) as db:
+        db.execute("INSERT INTO threads (id, rollout_path, title, archived, archived_at) VALUES ('t2', '', 'Other Thread', 0, NULL)")
+        db.execute("INSERT INTO thread_spawn_edges (parent_thread_id, child_thread_id, status) VALUES ('missing-parent', 't2', 'open')")
+        db.execute("INSERT INTO agent_job_items (id, assigned_thread_id) VALUES ('job2', 'missing-thread')")
+    adapter = SQLiteStorageAdapter(db_path, BackupStore(tmp_path / "backups"))
+
+    result = adapter.delete_local(SessionRef(session_id="t1", title="Codex Thread"))
+
+    assert result.status == DeleteStatus.LOCAL_DELETED
+    with sqlite3.connect(db_path) as db:
+        assert db.execute(
+            """
+            SELECT COUNT(*) FROM thread_spawn_edges e
+            LEFT JOIN threads parent ON parent.id = e.parent_thread_id
+            LEFT JOIN threads child ON child.id = e.child_thread_id
+            WHERE parent.id IS NULL OR child.id IS NULL
+            """
+        ).fetchone()[0] == 0
+        assert db.execute("SELECT assigned_thread_id FROM agent_job_items WHERE id = 'job2'").fetchone()[0] is None
+
+    restored = adapter.undo(result.undo_token or "")
+
+    assert restored.status == DeleteStatus.UNDONE
+    with sqlite3.connect(db_path) as db:
+        assert db.execute("SELECT COUNT(*) FROM thread_spawn_edges WHERE parent_thread_id = 'missing-parent' AND child_thread_id = 't2'").fetchone()[0] == 1
+        assert db.execute("SELECT assigned_thread_id FROM agent_job_items WHERE id = 'job2'").fetchone()[0] == "missing-thread"
+
+
 def test_undo_restores_deleted_codex_thread_schema_and_rollout_file(tmp_path):
     db_path = tmp_path / "state_5.sqlite"
     rollout_path = tmp_path / "rollout.jsonl"
