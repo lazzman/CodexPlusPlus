@@ -76,6 +76,31 @@ def test_renderer_script_has_no_ad_or_sponsor_runtime_ui():
         assert needle not in text
 
 
+def test_renderer_script_has_retry_attempt_controls_setting_and_config_writes():
+    text = Path("codex_session_delete/inject/renderer-inject.js").read_text(encoding="utf-8")
+
+    assert "retryAttemptControls: false" in text
+    assert "重试次数控制" in text
+    assert "data-codex-plus-setting=\"retryAttemptControls\"" in text
+    assert "retryAttemptLimitValue = 100" in text
+    assert "retryFixedDelayMs = 1000" in text
+    assert "bestOfNAtomKey = \"composer-best-of-n\"" in text
+    assert "persistedAtomPrefix = \"codex:persisted-atom:\"" in text
+    assert "applyRetryAttemptControls()" in text
+    assert "installRetryFixedDelayPatch()" in text
+    assert "retryDelayLooksExponential(delay)" in text
+    assert "[2000, 4000, 8000, 16000, 30000].includes(ms)" in text
+    assert "retryTimerStackLooksRelevant()" in text
+    assert "app-server-manager-signals-C1h8B-R-.js" in text
+    assert "setPersistedCodexAtom(bestOfNAtomKey, attempts, signals)" in text
+    assert "if (!configPayload) return { status: \"failed\", message: \"Codex config read failed\" }" in text
+    assert "model_providers.${providerId}.request_max_retries" in text
+    assert "model_providers.${providerId}.stream_max_retries" in text
+    assert "batch-write-config-value" in text
+    assert "reloadUserConfig: true" in text
+    assert "window.__codexPlusRetryAttemptControls" in text
+
+
 def test_renderer_script_contains_conversation_timeline_contract():
     text = Path("codex_session_delete/inject/renderer-inject.js").read_text(encoding="utf-8")
 
@@ -214,6 +239,10 @@ def test_renderer_script_enables_plugin_entry_for_api_key_users():
     assert "__reactFiber" in text
     assert "/skills/plugins" not in text
     assert "skillProps.onClick" not in text
+    assert "unblockButtonElement(pluginButton)" in plugin_entry_code
+    assert "function reactPropsFor(element)" in text
+    assert "event.stopImmediatePropagation?.()" in text[text.index("function installPluginReactOnClickFallback"):text.index("\n\n  function labelForcedInstallButton")]
+    assert "props.onClick(new MouseEvent(\"click\", { bubbles: true, cancelable: true, view: window }))" in text
 
 
 def test_renderer_script_unblocks_connector_unavailable_plugin_install_buttons_without_full_body_text_scan():
@@ -231,6 +260,7 @@ def test_renderer_script_unblocks_connector_unavailable_plugin_install_buttons_w
     assert "removeAttribute(\"aria-disabled\")" in plugin_unlock_code
     assert "labelForcedInstallButton" in plugin_unlock_code
     assert "强制安装" in plugin_unlock_code
+    assert "installPluginReactOnClickFallback(button)" in plugin_unlock_code
 
 
 def test_renderer_script_debounces_mutation_observer_scan():
@@ -377,11 +407,39 @@ def test_renderer_script_clears_focus_and_removes_deleted_rows():
     assert "row.style.display = \"none\"" not in text
 
 
+def test_renderer_script_tracks_locally_deleted_rows_and_restores_after_undo():
+    text = Path("codex_session_delete/inject/renderer-inject.js").read_text(encoding="utf-8")
+
+    assert "const locallyDeletedSessionIds = window.__codexPlusLocallyDeletedSessionIds || new Set()" in text
+    assert "function rememberDeletedSession(ref)" in text
+    assert "function forgetDeletedSession(sessionId)" in text
+    assert "function pruneLocallyDeletedSessionRows()" in text
+    assert "data-codex-locally-deleted" in text
+    assert "hideDeletedRow(row)" in text
+    assert "showRestoredRow(row)" in text
+    assert "locallyDeletedSessionIds.add(`local:${normalized}`)" in text
+    assert "locallyDeletedSessionIds.delete(`local:${normalized}`)" in text
+    assert "if (result.status === \"undone\" || result.session_id) forgetDeletedSession(result.session_id)" in text
+    assert "rememberDeletedSession(ref);\n        removeDeletedRow(row, button, ref)" in text
+    assert "rememberDeletedSession(ref);\n        hideDeletedRow(row)" in text
+    assert "pruneLocallyDeletedSessionRows();" in text
+
+
 def test_renderer_script_uses_in_page_confirm_and_stops_early_pointer_events():
     text = Path("codex_session_delete/inject/renderer-inject.js").read_text(encoding="utf-8")
     assert "confirm(" not in text
-    assert "codex-delete-confirm-overlay" in text
-    assert "escapeHtml(title)" in text
+    assert "codex-delete-confirm-popover" in text
+    assert "function confirmDelete(title, anchor)" in text
+    assert "window.__codexSessionDeleteConfirmCleanup?.()" in text
+    assert "anchor?.getBoundingClientRect?.()" in text
+    assert "popover.dataset.placement = placement" in text
+    assert "popover.style.left = `${left}px`" in text
+    assert "popover.style.visibility = \"visible\"" in text
+    assert "confirmDelete(ref.title, button)" in text
+    assert "confirmDelete(ref.title, deleteButton)" in text
+    assert "confirmDelete(`全部 ${currentRows.length} 个归档会话`, button)" in text
+    assert "codex-delete-confirm-overlay" not in text
+    assert "popover.setAttribute(\"aria-label\", `删除会话：${title}`)" in text
     assert "stopImmediatePropagation" in text
     assert "\"pointerdown\", \"mousedown\", \"mouseup\", \"touchstart\"" in text
 
@@ -398,10 +456,33 @@ def test_renderer_script_toast_does_not_capture_page_interactions():
     assert "z-index: 2147483000" in text
     assert "pointer-events: none" in text
     assert "pointer-events: auto" in text
+
+
+def test_renderer_script_sidebar_actions_are_accessible_icon_buttons():
+    text = Path("codex_session_delete/inject/renderer-inject.js").read_text(encoding="utf-8")
+
+    assert "sessionActionButtonConfigs" in text
+    assert "function configureSessionActionButton(button, kind, busy = false)" in text
+    assert "button.dataset.codexActionKind = kind" in text
+    assert "button.dataset.codexActionIconVersion = \"1\"" in text
+    assert "button.setAttribute(\"aria-label\", label)" in text
+    assert "button.title = label" in text
+    assert "button.innerHTML = config.icon" in text
+    assert "移动会话" in text
+    assert "导出 Markdown" in text
+    assert "删除会话" in text
+    assert "configureSessionActionButton(moveButton, \"move\")" in text
+    assert "configureSessionActionButton(exportButton, \"export\")" in text
+    assert "configureSessionActionButton(deleteButton, \"delete\")" in text
+    assert ".${actionButtonClass} svg" in text
+    assert "data-codex-action-kind=\"delete\"]:hover" in text
+    assert "--codex-plus-action-color" in text
+
+
 def test_renderer_script_sidebar_delete_opens_on_pointerup_when_click_is_unreliable():
     text = Path("codex_session_delete/inject/renderer-inject.js").read_text(encoding="utf-8")
     assert "openDeleteConfirm" in text
-    assert "codexDeleteVersion = \"7\"" in text
+    assert "codexDeleteVersion = \"8\"" in text
     assert "actionGroupFromRow" in text
     assert "removeActionGroups(row)" in text
     assert "row.dataset.codexDeleteRow = \"false\"" in text
@@ -424,7 +505,7 @@ def test_renderer_script_removes_orphaned_projected_rows_when_thread_is_missing(
 
     text = Path("codex_session_delete/inject/renderer-inject.js").read_text(encoding="utf-8")
     assert "updateDeleteButtonOffsets" in text
-    assert "codexDeleteStyleVersion = \"9\"" in text
+    assert "codexDeleteStyleVersion = \"10\"" in text
     assert "right: 66px" in text
     assert "确认" in text
     assert "归档对话" in text
@@ -465,7 +546,18 @@ def test_renderer_script_removes_orphaned_projected_rows_when_thread_is_missing(
     assert "const titleMatches = sessionRows().map(sessionRefFromRow)" not in text
     assert "document.querySelectorAll(\"[data-codex-archive-delete-all]\").forEach((node) => node.remove())" not in text
     assert "const existingButton = document.querySelector(\"[data-codex-archive-delete-all]\")" in text
-    assert "if (existingButton?.dataset.codexArchiveDeleteAllVersion === codexArchiveDeleteAllVersion) return" in text
+    assert "positionArchivedDeleteAllButton" in text
+    assert "function archiveTitleTextRect(title)" in text
+    assert "document.createTreeWalker(title, NodeFilter.SHOW_TEXT)" in text
+    assert "range.selectNodeContents(node)" in text
+    assert "range.getBoundingClientRect()" in text
+    assert "const titleRect = archiveTitleTextRect(title)" in text
+    assert "titleRect.right + gap" in text
+    assert "top: `${titleRect.top + titleRect.height / 2}px`" in text
+    assert "transform: \"translateY(-50%)\"" in text
+    assert "if (existingButton.parentElement !== document.body) document.body.appendChild(existingButton)" in text
+    assert "positionArchivedDeleteAllButton(existingButton, title)" in text
+    assert "runScanStep(installArchivedDeleteAllButton)" in text
     assert "existingButton?.remove()" in text
     assert "button.dataset.codexArchiveDeleteAllVersion = codexArchiveDeleteAllVersion" in text
     assert "data-codex-archive-delete-all" in text
@@ -474,14 +566,32 @@ def test_renderer_script_removes_orphaned_projected_rows_when_thread_is_missing(
     assert "style.dataset.codexDeleteStyleVersion" in text
     assert "position: fixed" in text
     assert "archiveTitleContainer" in text
-    assert "element.getBoundingClientRect().x > 350" in text
+    assert "archiveTitleCandidateVisible" in text
+    assert "rect.width > 0 && rect.height > 0 && rect.x > 350" in text
+    assert "element.closest?.(\".window-fx-sidebar-surface, nav\")" in text
+    assert "data-codex-archive-title-inline" in text
+    assert "title.dataset.codexArchiveTitleInline = \"true\"" in text
+    assert "data-codex-archive-title-row" not in text
+    assert "codexArchiveTitleRow" not in text
+    assert "titleRow.dataset.codexArchiveTitleRow" not in text
+    assert "--codex-plus-archive-color" in text
+    assert "--codex-plus-archive-hover-background" in text
+    assert "html[data-theme=\"dark\"]" in text
+    assert "body[data-theme=\"dark\"]" in text
+    assert "data-codex-archive-row-action=\"delete\"]:hover" in text
+    assert "button.setAttribute(\"aria-label\", \"删除全部归档\")" in text
+    assert "button.title = \"删除全部归档\"" in text
+    assert "Element.prototype" not in text
+    assert "CSSStyleDeclaration" not in text
     assert "已归档对话" in text
-    assert "insertAdjacentElement(\"afterend\", button)" in text
+    assert "title.insertAdjacentElement(\"afterend\", button)" not in text
+    assert "title.appendChild(button)" not in text
+    assert "title.parentElement" not in text
+    assert "document.body.appendChild(button)" in text
     assert "maxWidth: \"fit-content\"" in text
-    assert "alignSelf: \"flex-start\"" in text
     assert "Object.assign(button.style" in text
     assert "cursor: \"pointer\"" in text
-    assert "position: \"static\"" in text
+    assert "position: \"fixed\"" in text
     assert "data-codex-archive-page-row" in text
     assert "data-app-action-sidebar-thread-id" in text
     assert "取消归档" in text
@@ -490,10 +600,31 @@ def test_renderer_script_removes_orphaned_projected_rows_when_thread_is_missing(
     assert "[role=\"listitem\"], [role=\"row\"]" in text
     assert "Archived conversations" in text
     assert "data-codex-archive-row-action" in text
-    assert "textContent = \"导出\"" in text
-    assert "textContent = \"删除\"" in text
-    assert "insertAdjacentElement(\"afterend\", exportButton)" in text
-    assert "insertAdjacentElement(\"afterend\", deleteButton)" in text
+    assert "archiveActionGroupClass = \"codex-archive-row-actions\"" in text
+    assert "codexArchiveRowActionsVersion = \"3\"" in text
+    assert "archiveActionButtonConfigs" in text
+    assert "label: \"取消归档对话\"" in text
+    assert "export: sessionActionButtonConfigs.export" in text
+    assert "...sessionActionButtonConfigs.delete" in text
+    assert "function configureArchiveActionButton(button, kind)" in text
+    assert "button.dataset.codexArchiveRowAction = kind" in text
+    assert "button.dataset.codexActionKind = kind" in text
+    assert "button.dataset.codexActionIconVersion = \"1\"" in text
+    assert "button.setAttribute(\"aria-label\", config.label)" in text
+    assert "button.title = config.label" in text
+    assert "button.innerHTML = config.icon" in text
+    assert "function archiveUnarchiveButtonFromRow(row)" in text
+    assert "Array.from(row.querySelectorAll(\"button\")).find(isUnarchiveButton)" in text
+    assert "function ensureArchiveRowActionGroup(row, unarchiveButton)" in text
+    assert "unarchiveButton.insertAdjacentElement(\"beforebegin\", group)" in text
+    assert "if (unarchiveButton.parentElement !== group) group.appendChild(unarchiveButton)" in text
+    assert "configureArchiveActionButton(unarchiveButton, \"unarchive\")" in text
+    assert "configureArchiveActionButton(exportButton, \"export\")" in text
+    assert "configureArchiveActionButton(deleteButton, \"delete\")" in text
+    assert "group.appendChild(exportButton)" in text
+    assert "group.appendChild(deleteButton)" in text
+    assert "installActionButtonEvents(row, unarchiveButton" not in text
+    assert "const unarchiveButton = document.createElement(\"button\")" not in text
 
 
 def test_renderer_script_uses_bridge_only_helper_calls():
@@ -675,7 +806,7 @@ def test_renderer_script_can_move_sidebar_threads_between_projects():
 
     assert "codex-project-move-button" in text
     assert "codex-project-move-overlay" in text
-    assert "codexProjectMoveVersion = \"1\"" in text
+    assert "codexProjectMoveVersion = \"2\"" in text
     assert "function moveSessionToProjectless" in text
     assert "function moveSessionToProject" in text
     assert "function projectMoveTargets" in text

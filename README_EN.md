@@ -18,161 +18,145 @@
 
 Codex++ is an external enhancement launcher and manager for the Codex App. It does not modify the original Codex installation. Instead, it starts Codex externally and injects enhancements through the Chromium DevTools Protocol.
 
-This repository is a personally maintained fork. The maintenance workflow is to monitor upstream `origin/main` and open PRs, manually evaluate suitable changes, rebase the local `main` onto `origin/main`, and push only to `fork/main`; do not push to `origin`.
+This repository is a personally maintained fork. Open upstream PRs are monitored alongside `origin/main`, suitable changes are reviewed manually, local `main` is rebased onto upstream, and updates are pushed only to `fork/main`, never to `origin`.
 
 ## Contents
 
-- [Quick Start](#quick-start)
+- [Windows Usage](#windows-usage)
+- [macOS Usage](#macos-usage)
+- [Fork Maintenance](#fork-maintenance)
 - [Highlights](#highlights)
-- [Relay Injection](#relay-injection)
-- [Enhancements](#enhancements)
-- [Updates and Packages](#updates-and-packages)
-- [Data Locations](#data-locations)
+- [User Script Migration Note](#user-script-migration-note)
+- [Provider Sync](#provider-sync)
+- [Common Commands](#common-commands)
 - [FAQ](#faq)
 - [Development](#development)
 - [Feedback](#feedback)
 
-## Quick Start
+## Windows Usage
 
 Download the latest installer from [GitHub Releases](https://github.com/BigPizzaV3/CodexPlusPlus/releases):
 
-- Windows: `CodexPlusPlus-*-windows-x64-setup.exe`
-- macOS Intel: `CodexPlusPlus-*-macos-x64.dmg`
-- macOS Apple Silicon: `CodexPlusPlus-*-macos-arm64.dmg`
+- `CodexPlusPlus-*-windows-x64-setup.exe`
 
 After installation, two entry points are available:
 
 - `Codex++`: a silent launcher. It does not show the manager UI and only starts Codex with Codex++ injection.
 - `Codex++ Manager`: a Tauri control panel for launch, diagnostics, repair, updates, relay injection, enhancements, and user scripts.
 
-The Windows installer creates desktop and Start Menu shortcuts. The macOS DMG installs `/Applications/Codex++.app` and `/Applications/Codex++ 管理工具.app`.
+The Windows installer creates desktop and Start Menu shortcuts.
 
-## Sponsors
+## macOS Usage
 
-<p align="center">
-  <a href="mailto:1727532@qq.com">Want to be shown below?</a>
-</p>
-<table>
-  <tr>
-    <th width="180">🏆 Sponsor 🏆</th>
-    <th>Introduction</th>
-  </tr>
-  <tr>
-    <td align="center">
-      <a href="https://jojocode.com/">
-        <img src="docs/images/sponsor-jojocode.svg" alt="JOJO Code" width="150">
-      </a>
-    </td>
-    <td><a href="https://jojocode.com/"><strong>JOJO Code | Official Codex++ Relay</strong></a><br>Thanks to JOJO Code for sponsoring this project! JOJO Code is the official Codex++ relay service. It is built for daily development and team collaboration, providing stable Codex API access for quick onboarding, long-term use, and project workflows.</td>
-  </tr>
-  <tr>
-    <td align="center">
-      <a href="https://aigocode.com/invite/CodexPlusPlus">
-        <img src="docs/images/sponsor-aigocode.png" alt="AIGoCode" width="150">
-      </a>
-    </td>
-    <td><a href="https://aigocode.com/invite/CodexPlusPlus"><strong>AIGoCode</strong></a><br>Thanks to AIGoCode for sponsoring this project! AIGoCode is an all-in-one platform integrating the latest Claude Code, Codex, and Gemini models, providing stable, efficient, and cost-effective AI programming services. It offers flexible subscription plans, direct access in China, no extra network setup, and fast responses. AIGoCode provides a special benefit for CodexPlusPlus users: users who <a href="https://aigocode.com/invite/CodexPlusPlus">register through this link</a> can receive an extra 10% bonus credit on their first recharge.</td>
-  </tr>
-  <tr>
-    <td align="center">
-      <a href="https://www.packyapi.com/">
-        <img src="docs/images/sponsor-packycode.png" alt="PackyCode" width="150">
-      </a>
-    </td>
-    <td><a href="https://www.packyapi.com/"><strong>PackyCode</strong></a><br>Thanks to PackyCode for sponsoring this project! PackyCode is a stable and efficient API relay service provider, offering relay services for Claude Code, Codex, Gemini, and more. PackyCode provides a special discount for users of this software: register through this link and enter the "CodexPlusPlus" coupon code when recharging to get 10% off your first recharge.</td>
-  </tr>
-  <tr>
-    <td align="center">
-      <a href="https://www.0029.org/?promo=AFF11F">
-        <img src="docs/images/sponsor-0029.svg" alt="0029 Cloud Bridge" width="150">
-      </a>
-    </td>
-    <td><a href="https://www.0029.org/?promo=AFF11F"><strong>0029 Cloud Bridge | Codex API Relay Station (gpt5.5 gpt-image-2)</strong></a><br>Supports individual and enterprise access. Monthly plans and pay-as-you-go billing are available, with Pro/Plus account pools, stable site-wide APIs, and 24/7 technical support.</td>
-  </tr>
-  <tr>
-    <td align="center">
-      <a href="https://rawchat.cn">
-        <img src="docs/images/sponsor-rawchat.svg" alt="RawChat" width="150">
-      </a>
-    </td>
-    <td><a href="https://rawchat.cn"><strong>RawChat | Codex Relay Station</strong></a><br>A long-running relay station with monthly plans, low-rate usage, high cache hit rates, Pro/Plus account pools, and dedicated all-day maintenance.</td>
-  </tr>
-  <tr>
-    <td align="center">
-      <a href="https://coder.visioncoder.cn">
-        <img src="https://coder.visioncoder.cn/logo.png" alt="VisionCoder" width="110">
-      </a>
-    </td>
-    <td><a href="https://coder.visioncoder.cn"><strong>VisionCoder Developer Platform</strong></a><br>Thanks to VisionCoder for supporting this project. VisionCoder Developer Platform is a reliable and efficient API relay service provider, offering access to mainstream AI models such as Claude Code, Codex, and Gemini. It helps developers and teams integrate AI capabilities more easily and improve productivity. VisionCoder is also offering our users a limited-time <a href="https://coder.visioncoder.cn">Token Plan</a> promotion: buy 1 month and get 1 month free.</td>
-  </tr>
-</table>
+Download the matching DMG:
 
+- Intel: `CodexPlusPlus-*-macos-x64.dmg`
+- Apple Silicon: `CodexPlusPlus-*-macos-arm64.dmg`
+
+Installation creates `/Applications/Codex++.app` and `/Applications/Codex++ 管理工具.app`.
+
+## Fork Maintenance
+
+- `origin` points to the upstream repository, and `fork` points to the personal fork.
+- Open upstream PRs are monitored, summarized, and recorded, but they are not merged automatically.
+- To sync upstream mainline changes, fetch remotes first, then rebase local `main` onto `origin/main`.
+- Maintenance commits for this fork are pushed only to `fork/main`, never to `origin`.
+- When upstream PRs are merged, partially picked, deferred, or rejected, update `docs/pr-integration-record.md` with the decision and reason.
 
 ## Highlights
 
-- Rust backend and silent launcher with no Python runtime requirement.
-- Tauri + React manager with dark/light theme support.
-- External CDP injection with no `app.asar` patching and no DLL writes into the Codex installation.
-- Relay injection mode with multiple relay profiles, `CodexPlusPlus` provider configuration, and a one-click switch back to official ChatGPT login mode.
-- Traditional enhancement mode with plugin entry unlock, forced plugin install, session delete, Markdown export, project move, Timeline, and more.
-- Independent user script management with startup injection.
-- Provider Sync to keep historical sessions visible after switching providers.
+- Adds a `Codex++` menu to manage enhancement features.
+- Plugin entry unlock for API Key mode.
+- Forced plugin install when the frontend blocks App unavailable states.
+- Retry attempt controls that can raise best-of attempts and the active provider request and stream retry limits to 100.
+- Session delete with confirmation and undo.
+- Markdown export from local rollout files.
+- Bulk Markdown ZIP export with per-session failure summaries.
+- Project move for normal conversations and local projects.
+- Bulk move with progress and failure records.
+- Conversation Timeline with question markers, hover summaries, and quick jump.
+- Provider Sync so historical conversations remain visible after you switch model_provider without losing historical conversations.
 - Zed open entry detects remote SSH context and opens the matching remote file in Zed Remote Development from Codex.
-- GitHub Release updates for both the manager and the silent launcher.
-- Windows single instance, no console window, administrator manifest, and system Desktop path detection.
-- Separate macOS x64 and arm64 DMGs with a hidden Dock icon for the silent launcher.
+- Windows shortcuts, uninstall entries, and GitHub Release updates.
+- macOS `/Applications/Codex++.app` bundle generation.
 
-## Relay Injection
+In API Key mode, the native Codex plugin entry may require ChatGPT login and remain unavailable:
 
-Relay injection is for users who are already logged in with an official ChatGPT account in Codex or ChatGPT and want model requests to go through a custom compatible API.
+![Plugin entry unavailable in API Key mode](docs/images/pain-plugin-disabled.png)
 
-In the manager's Relay Injection page:
+The native Codex session list only has archive actions and no real delete button:
 
-1. Make sure ChatGPT login status is detected.
-2. Add one or more relay profiles with Base URL and Key.
-3. Select the active profile and apply relay injection.
-4. Launch `Codex++`.
+![Native session list lacks delete action](docs/images/pain-no-delete-button.png)
 
-Codex++ writes configuration similar to this into `~/.codex/config.toml`:
+After launching through Codex++, the plugin entry is unlocked and a delete button appears when hovering a session:
 
-```toml
-model_provider = "CodexPlusPlus"
+![Codex++ unlocks plugin entry and adds delete button](docs/images/solution-plugin-and-delete.png)
 
-[model_providers.CodexPlusPlus]
-name = "CodexPlusPlus"
-wire_api = "responses"
-requires_openai_auth = true
-base_url = "https://example.com/v1"
-experimental_bearer_token = "sk-..."
+The top bar shows `Codex++`, backend status, and the settings panel:
+
+![Codex++ backend status indicator](docs/images/backend-status-indicator.png)
+![Codex++ settings panel](docs/images/settings-panel.png)
+
+Project charts:
+
+![Contributors](https://contrib.rocks/image?repo=BigPizzaV3/CodexPlusPlus)
+![Star History](https://api.star-history.com/svg?repos=BigPizzaV3/CodexPlusPlus&type=Date)
+
+## User Script Migration Note
+
+Earlier versions used local user scripts for retry controls, delete stability, plugin install click fallback, archive-page button styling, settings cleanup, and sidebar icon action buttons. These behaviors now live in the core `renderer-inject.js`.
+
+If `~/.config/Codex++/user_scripts/` still contains old scripts such as `10-retry-attempt-controls.js` through `60-session-actions-icon-buttons.js`, disable or delete them after upgrading. Keeping them can cause duplicate patches, duplicate `MutationObserver` work, or duplicate style overrides. The user script system remains available for personal extensions.
+
+## Provider Sync
+
+When `Provider Sync` is enabled, Codex++ synchronizes local session metadata before launch so you can switch model_provider without losing historical conversations.
+
+It aligns rollout files, SQLite thread records, and project path caches. It only fixes visibility metadata and does not rewrite message content. Busy files or SQLite locks are skipped so startup can continue.
+
+## Common Commands
+
+```bash
+# Install dependencies
+python -m pip install -e .
+
+# Launch
+python -m codex_session_delete launch
+
+# Install shortcuts / app bundle
+python -m codex_session_delete setup
+
+# Remove
+python -m codex_session_delete remove
+
+# Remove logs and backup data too
+python -m codex_session_delete remove --remove-data
+
+# Check update / update
+python -m codex_session_delete check-update
+python -m codex_session_delete update
+
+# Optional Windows watcher takeover
+python -m codex_session_delete watch-install
+python -m codex_session_delete watch-remove
+python -m codex_session_delete watch-disable
+python -m codex_session_delete watch-enable
 ```
 
-To return to the official login mode, use the clear API mode button in the Relay Injection page. This removes `OPENAI_API_KEY` related configuration and switches Codex back to official ChatGPT authentication.
+Launch with a custom Codex path:
 
-## Enhancements
-
-Enhancements are controlled in the manager. Enhancement injection is enabled by default. When disabled, Codex++ will not inject its menu or scripts.
-
-When relay injection mode is active, plugin entry unlock and forced plugin install are unnecessary, and the UI will say so. Other enhancements, including session delete, export, move, Timeline, and user scripts, can still be used.
-
-## Updates and Packages
-
-Codex++ publishes installers through GitHub Releases. Windows builds an NSIS installer, while macOS builds separate Intel x64 and Apple Silicon arm64 DMGs.
-
-The manager's About page can check and start updates. When the silent launcher finds a new version, it opens the manager directly on the update prompt.
-
-## Data Locations
-
-- Codex config: `~/.codex/config.toml`
-- Codex auth state: `~/.codex/auth.json`
-- Codex local database: `~/.codex/state_5.sqlite`
-- Codex++ state and logs: `~/.codex-session-delete/`
-- Provider Sync backups: `~/.codex/backups_state/provider-sync`
+```bash
+python -m codex_session_delete launch \
+  --app-dir "C:/Program Files/WindowsApps/OpenAI.Codex_xxx/app" \
+  --debug-port 9229 \
+  --helper-port 57321
+```
 
 ## FAQ
 
 ### The Codex++ menu does not appear
 
-Make sure Codex was launched from the `Codex++` entry instead of the original Codex entry. You can also inspect the Diagnostics and Logs pages in the manager.
+Make sure you launched from the `Codex++` shortcut instead of the original Codex entry. You can also inspect the Diagnostics and Logs pages in the manager.
 
 ### The plugin says the backend is disconnected
 

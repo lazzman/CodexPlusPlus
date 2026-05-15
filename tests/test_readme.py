@@ -42,6 +42,27 @@ def test_readme_documents_provider_sync_as_no_session_loss():
     assert "不丢历史会话" in text
 
 
+def test_readme_documents_user_script_migration_notice():
+    text = Path("README.md").read_text(encoding="utf-8")
+    english = Path("README_EN.md").read_text(encoding="utf-8")
+
+    assert "用户脚本迁移提示" in text
+    assert "这些能力已迁入核心 `renderer-inject.js`" in text
+    assert "~/.config/Codex++/user_scripts/" in text
+    assert "10-retry-attempt-controls.js" in text
+    assert "60-session-actions-icon-buttons.js" in text
+    assert "建议禁用或删除它们" in text
+    assert "重复 patch、重复 `MutationObserver` 或重复样式覆盖" in text
+
+    assert "User Script Migration Note" in english
+    assert "now live in the core `renderer-inject.js`" in english
+    assert "~/.config/Codex++/user_scripts/" in english
+    assert "10-retry-attempt-controls.js" in english
+    assert "60-session-actions-icon-buttons.js" in english
+    assert "disable or delete them after upgrading" in english
+    assert "duplicate patches, duplicate `MutationObserver` work, or duplicate style overrides" in english
+
+
 def test_readme_documents_personal_fork_sync_policy():
     text = Path("README.md").read_text(encoding="utf-8")
 

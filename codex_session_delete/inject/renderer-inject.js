@@ -12,6 +12,7 @@
   const bulkMoveTriggerClass = "codex-bulk-move-trigger";
   const actionButtonClass = "codex-session-action-button";
   const actionGroupClass = "codex-session-actions";
+  const archiveActionGroupClass = "codex-archive-row-actions";
   const timelineClass = "codex-conversation-timeline";
   const timelineTrackClass = "codex-conversation-timeline-track";
   const timelineMarkerClass = "codex-conversation-timeline-marker";
@@ -36,15 +37,20 @@
   const chatsSortRefreshIntervalMs = 1500;
   const chatsSortDbRefreshIntervalMs = 5000;
   const styleId = "codex-delete-style";
-  const codexDeleteStyleVersion = "9";
+  const codexDeleteStyleVersion = "10";
   const codexPlusMenuId = "codex-plus-menu";
   const codexPlusMenuFloatingClass = "codex-plus-menu-floating";
-  const codexDeleteVersion = "7";
-  const codexExportVersion = "1";
-  const codexProjectMoveVersion = "1";
-  const codexActionGroupVersion = "2";
-  const codexArchiveRowActionsVersion = "1";
-  const codexArchiveDeleteAllVersion = "2";
+  const codexDeleteVersion = "8";
+  const codexExportVersion = "2";
+  const codexProjectMoveVersion = "2";
+  const codexActionGroupVersion = "3";
+  const codexArchiveRowActionsVersion = "3";
+  const codexArchiveDeleteAllVersion = "4";
+  const codexRetryAttemptControlsVersion = "1";
+  const retryAttemptLimitValue = 100;
+  const retryFixedDelayMs = 1000;
+  const bestOfNAtomKey = "composer-best-of-n";
+  const persistedAtomPrefix = "codex:persisted-atom:";
   const codexConversationTimelineVersion = "2";
   const codexThreadScrollVersion = "1";
   const codexPlusVersion = "1.0.7";
@@ -95,6 +101,47 @@
     style.id = styleId;
     style.dataset.codexDeleteStyleVersion = codexDeleteStyleVersion;
     style.textContent = `
+      :root {
+        --codex-plus-action-color: rgb(26, 28, 31);
+        --codex-plus-action-hover-color: rgb(26, 28, 31);
+        --codex-plus-danger-color: #dc2626;
+        --codex-plus-archive-color: rgba(26, 28, 31, .66);
+        --codex-plus-archive-hover-color: rgb(26, 28, 31);
+        --codex-plus-archive-background: rgba(26, 28, 31, .05);
+        --codex-plus-archive-hover-background: rgba(26, 28, 31, .08);
+        --codex-plus-archive-hover-border: rgba(26, 28, 31, .12);
+        --codex-plus-danger-background: rgba(220, 38, 38, .07);
+        --codex-plus-danger-border: rgba(220, 38, 38, .18);
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --codex-plus-action-color: rgba(255, 255, 255, .72);
+          --codex-plus-action-hover-color: rgb(255, 255, 255);
+          --codex-plus-danger-color: #f87171;
+          --codex-plus-archive-color: rgba(255, 255, 255, .72);
+          --codex-plus-archive-hover-color: rgb(255, 255, 255);
+          --codex-plus-archive-background: rgba(255, 255, 255, .08);
+          --codex-plus-archive-hover-background: rgba(255, 255, 255, .12);
+          --codex-plus-archive-hover-border: rgba(255, 255, 255, .20);
+          --codex-plus-danger-background: rgba(248, 113, 113, .14);
+          --codex-plus-danger-border: rgba(248, 113, 113, .30);
+        }
+      }
+      html.dark,
+      body.dark,
+      html[data-theme="dark"],
+      body[data-theme="dark"] {
+        --codex-plus-action-color: rgba(255, 255, 255, .72);
+        --codex-plus-action-hover-color: rgb(255, 255, 255);
+        --codex-plus-danger-color: #f87171;
+        --codex-plus-archive-color: rgba(255, 255, 255, .72);
+        --codex-plus-archive-hover-color: rgb(255, 255, 255);
+        --codex-plus-archive-background: rgba(255, 255, 255, .08);
+        --codex-plus-archive-hover-background: rgba(255, 255, 255, .12);
+        --codex-plus-archive-hover-border: rgba(255, 255, 255, .20);
+        --codex-plus-danger-background: rgba(248, 113, 113, .14);
+        --codex-plus-danger-border: rgba(248, 113, 113, .30);
+      }
       .${actionGroupClass} {
         position: absolute;
         right: 28px;
@@ -102,38 +149,62 @@
         transform: translateY(-50%);
         z-index: 20;
         opacity: 0;
-        display: inline-flex;
+        display: inline-flex !important;
         align-items: center;
+        justify-content: center;
         gap: 6px;
+        height: 20px;
+        min-height: 20px;
+        padding: 0;
+        border: 0;
+        background: transparent;
       }
-      .${actionButtonClass},
-      .codex-archive-row-button {
-        border: 1px solid #ef4444;
-        border-radius: 6px;
-        background: #f3f4f6;
-        color: #374151;
-        font-size: 12px;
-        line-height: 16px;
-        padding: 1px 6px;
-        cursor: pointer;
+      .${actionButtonClass} {
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        width: 20px !important;
+        height: 20px !important;
+        min-width: 20px !important;
+        min-height: 20px !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        border: 1px solid transparent !important;
+        border-radius: 10px !important;
+        background: transparent !important;
+        color: var(--codex-plus-action-color) !important;
+        font-size: 0 !important;
+        line-height: 0 !important;
+        opacity: .5 !important;
+        box-shadow: none !important;
+        cursor: pointer !important;
+        transition: color .12s ease, opacity .12s ease, transform .12s ease !important;
       }
-      .codex-archive-row-button {
-        border-radius: 7px;
-        font: 12px system-ui, sans-serif;
-        line-height: 16px;
-        padding: 3px 8px;
+      .${actionButtonClass} svg {
+        width: 14px !important;
+        height: 14px !important;
+        display: block !important;
+        fill: none !important;
+        stroke: currentColor !important;
+        stroke-width: 1.6 !important;
+        stroke-linecap: round !important;
+        stroke-linejoin: round !important;
+        pointer-events: none !important;
       }
-      .${buttonClass},
-      .codex-archive-row-button.${buttonClass} {
-        border-color: #ef4444;
-        background: #fee2e2;
-        color: #991b1b;
+      .${actionButtonClass}:hover,
+      .${actionButtonClass}:focus-visible {
+        background: transparent !important;
+        color: var(--codex-plus-action-hover-color) !important;
+        opacity: 1 !important;
+        outline: none !important;
       }
-      .${exportButtonClass},
-      .codex-archive-row-button.${exportButtonClass} {
-        border-color: #93c5fd;
-        background: #dbeafe;
-        color: #1d4ed8;
+      .${actionButtonClass}:active {
+        transform: translateY(1px) !important;
+        background: transparent !important;
+      }
+      .${actionButtonClass}[data-codex-action-kind="delete"]:hover,
+      .${actionButtonClass}[data-codex-action-kind="delete"]:focus-visible {
+        color: var(--codex-plus-danger-color) !important;
       }
       .${bulkExportCheckboxClass},
       .${bulkMoveCheckboxClass} {
@@ -245,6 +316,8 @@
         box-shadow: 0 8px 30px rgba(0,0,0,.25);
         pointer-events: none;
       }
+      [data-codex-locally-deleted="true"] { display: none !important; }
+      [data-codex-locally-deleted="true"] { display: none !important; }
       [data-codex-delete-row="true"]:hover .${actionGroupClass} { opacity: 1; }
       [data-codex-delete-row="true"].codex-archive-confirm-visible .${actionGroupClass} { right: 66px; }
       .${projectMoveOverlayClass} {
@@ -307,20 +380,78 @@
         background: #10a37f;
         transition: width 160ms ease;
       }
-      .codex-archive-delete-all {
-        border: 1px solid #ef4444;
-        border-radius: 7px;
-        background: #fee2e2;
-        color: #991b1b;
-        font: 12px system-ui, sans-serif;
-        line-height: 16px;
-        padding: 3px 8px;
-        cursor: pointer;
+      [data-codex-archive-delete-all="true"] {
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        gap: var(--codex-archive-native-gap, 4px) !important;
+        min-width: var(--codex-archive-native-min-width, auto) !important;
+        height: var(--codex-archive-native-height, 28px) !important;
+        min-height: var(--codex-archive-native-height, 28px) !important;
+        margin: 0 !important;
+        padding: var(--codex-archive-native-padding, 0 8px) !important;
+        border: var(--codex-archive-native-border, 1px solid transparent) !important;
+        border-radius: var(--codex-archive-native-radius, 999px) !important;
+        background: var(--codex-archive-native-background, transparent) !important;
+        box-shadow: none !important;
+        color: var(--codex-archive-native-color, var(--codex-plus-archive-color)) !important;
+        font: var(--codex-archive-native-font, 13px system-ui, sans-serif) !important;
+        line-height: var(--codex-archive-native-line-height, 1) !important;
+        white-space: nowrap !important;
+        cursor: pointer !important;
+        opacity: var(--codex-archive-native-opacity, 1) !important;
+        pointer-events: auto !important;
+        vertical-align: middle !important;
+        transition: background-color .12s ease, border-color .12s ease, color .12s ease, opacity .12s ease !important;
+      }
+      [data-codex-archive-delete-all="true"]:hover,
+      [data-codex-archive-delete-all="true"]:focus-visible {
+        background: var(--codex-archive-native-hover-background, var(--codex-plus-archive-hover-background)) !important;
+        border-color: var(--codex-archive-native-hover-border, var(--codex-plus-archive-hover-border)) !important;
+        color: var(--codex-archive-native-hover-color, var(--codex-plus-archive-hover-color)) !important;
+        opacity: 1 !important;
+        outline: none !important;
+      }
+      .${archiveActionGroupClass} {
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        gap: 6px !important;
+        flex: 0 0 auto !important;
+        margin-left: auto !important;
+        padding: 4px !important;
+        min-height: 28px !important;
+        border: 1px solid transparent !important;
+        border-radius: 14px !important;
+        background: var(--codex-plus-archive-background) !important;
+      }
+      .${archiveActionGroupClass} [data-codex-archive-row-action] {
+        width: 20px !important;
+        height: 20px !important;
+        min-width: 20px !important;
+        min-height: 20px !important;
+        padding: 0 !important;
+        color: var(--codex-plus-archive-color) !important;
+        opacity: .68 !important;
+      }
+      .${archiveActionGroupClass} [data-codex-archive-row-action]:hover,
+      .${archiveActionGroupClass} [data-codex-archive-row-action]:focus-visible {
+        color: var(--codex-plus-archive-hover-color) !important;
+        opacity: 1 !important;
+      }
+      .${archiveActionGroupClass} [data-codex-archive-row-action="delete"]:hover,
+      .${archiveActionGroupClass} [data-codex-archive-row-action="delete"]:focus-visible,
+      [data-codex-archive-delete-all="true"]:hover,
+      [data-codex-archive-delete-all="true"]:focus-visible {
+        background: var(--codex-plus-danger-background) !important;
+        border-color: var(--codex-plus-danger-border) !important;
+        color: var(--codex-plus-danger-color) !important;
+      }
+      [data-codex-archive-delete-all="true"] {
+        margin: 0 !important;
       }
       .codex-archive-action-bar {
         position: fixed;
-        right: 28px;
-        top: 86px;
         z-index: 2147482999;
         box-shadow: 0 8px 24px rgba(0,0,0,.18);
       }
@@ -338,43 +469,51 @@
         pointer-events: none;
       }
       .codex-delete-toast button { margin-left: 10px; pointer-events: auto; }
-      .codex-delete-confirm-overlay {
+      .codex-delete-confirm-popover {
         position: fixed;
-        inset: 0;
         z-index: 2147483200;
         display: flex;
         align-items: center;
-        justify-content: center;
-        background: rgba(15,23,42,.28);
-      }
-      .codex-delete-confirm-content {
-        width: min(420px, calc(100vw - 48px));
+        gap: 6px;
+        padding: 6px;
         border: 1px solid rgba(15,23,42,.12);
-        border-radius: 12px;
+        border-radius: 8px;
         background: #ffffff;
         color: #111827;
-        font: 14px system-ui, sans-serif;
-        box-shadow: 0 24px 80px rgba(15,23,42,.22);
-        padding: 18px;
+        font: 12px system-ui, sans-serif;
+        box-shadow: 0 12px 32px rgba(15,23,42,.22);
+        -webkit-app-region: no-drag;
       }
-      .codex-delete-confirm-title { font-size: 16px; font-weight: 650; }
-      .codex-delete-confirm-message { margin-top: 8px; color: #4b5563; line-height: 1.45; }
-      .codex-delete-confirm-actions {
-        display: flex;
-        justify-content: flex-end;
-        gap: 10px;
-        margin-top: 18px;
+      .codex-delete-confirm-popover::before {
+        content: "";
+        position: absolute;
+        left: -5px;
+        top: 50%;
+        width: 8px;
+        height: 8px;
+        transform: translateY(-50%) rotate(45deg);
+        border-left: 1px solid rgba(15,23,42,.12);
+        border-bottom: 1px solid rgba(15,23,42,.12);
+        background: #ffffff;
       }
-      .codex-delete-confirm-actions button {
+      .codex-delete-confirm-popover[data-placement="left"]::before {
+        left: auto;
+        right: -5px;
+        border-left: 0;
+        border-bottom: 0;
+        border-right: 1px solid rgba(15,23,42,.12);
+        border-top: 1px solid rgba(15,23,42,.12);
+      }
+      .codex-delete-confirm-popover button {
         border: 1px solid #d1d5db;
-        border-radius: 7px;
-        padding: 6px 12px;
+        border-radius: 6px;
+        padding: 4px 8px;
         background: #ffffff;
         color: #111827;
-        font: 13px system-ui, sans-serif;
+        font: inherit;
         cursor: pointer;
       }
-      .codex-delete-confirm-actions [data-codex-delete-confirm="true"] {
+      .codex-delete-confirm-popover [data-codex-delete-confirm="true"] {
         border-color: #ef4444;
         background: #dc2626;
         color: #ffffff;
@@ -638,6 +777,7 @@
     return {
       pluginEntryUnlock: true,
       forcePluginInstall: true,
+      retryAttemptControls: false,
       sessionDelete: true,
       markdownExport: true,
       bulkExport: true,
@@ -846,6 +986,10 @@
             <div class="codex-plus-row">
               <div><div class="codex-plus-row-title">特殊插件强制安装</div><div class="codex-plus-row-description">解除 App unavailable / 应用不可用导致的前端安装禁用。</div></div>
               <button type="button" class="codex-plus-toggle" data-codex-plus-setting="forcePluginInstall"><span></span></button>
+            </div>
+            <div class="codex-plus-row">
+              <div><div class="codex-plus-row-title">重试次数控制</div><div class="codex-plus-row-description">开启后把 best-of 尝试数和当前 provider 请求/流式重试上限提升到 100，并将疑似重试退避压到 1 秒。</div></div>
+              <button type="button" class="codex-plus-toggle" data-codex-plus-setting="retryAttemptControls"><span></span></button>
             </div>
             <div class="codex-plus-row">
               <div><div class="codex-plus-row-title">会话删除</div><div class="codex-plus-row-description">在会话列表悬停显示删除按钮，并支持撤销。</div></div>
@@ -1167,6 +1311,11 @@
     return fiberKey ? element[fiberKey] : null;
   }
 
+  function reactPropsFor(element) {
+    const propsKey = Object.keys(element || {}).find((key) => key.startsWith("__reactProps"));
+    return propsKey ? element[propsKey] : null;
+  }
+
   function authContextValueFrom(element) {
     for (let fiber = reactFiberFrom(element); fiber; fiber = fiber.return) {
       for (const value of [fiber.memoizedProps?.value, fiber.pendingProps?.value]) {
@@ -1257,11 +1406,27 @@
     button.classList.remove("disabled", "opacity-50", "cursor-not-allowed", "pointer-events-none");
     button.style.pointerEvents = "auto";
     button.tabIndex = 0;
-    const reactPropsKey = Object.keys(button).find((key) => key.startsWith("__reactProps"));
-    if (reactPropsKey) {
-      button[reactPropsKey].disabled = false;
-      button[reactPropsKey]["aria-disabled"] = false;
+    const props = reactPropsFor(button);
+    if (props) {
+      props.disabled = false;
+      props["aria-disabled"] = false;
     }
+    installPluginReactOnClickFallback(button);
+  }
+
+  function installPluginReactOnClickFallback(button) {
+    const clickVersion = "react-onclick-v1";
+    if (button.dataset.codexPlusPluginClickVersion === clickVersion) return;
+    button.dataset.codexPlusPluginClickVersion = clickVersion;
+    button.addEventListener("click", (event) => {
+      const props = reactPropsFor(event.currentTarget);
+      if (props && typeof props.onClick === "function") {
+        event.preventDefault();
+        event.stopPropagation();
+        event.stopImmediatePropagation?.();
+        props.onClick(new MouseEvent("click", { bubbles: true, cancelable: true, view: window }));
+      }
+    }, true);
   }
 
   function labelForcedInstallButton(button) {
@@ -1304,6 +1469,16 @@
     return !!Array.from(document.querySelectorAll("h1, h2, h3")).find((element) => (element.textContent || "").trim() === "已归档对话");
   }
 
+  function isUnarchiveButton(button) {
+    const text = (button.textContent || "").trim();
+    const ariaLabel = button.getAttribute("aria-label") || "";
+    const title = button.getAttribute("title") || "";
+    return button.dataset.codexArchiveRowAction === "unarchive"
+      || text === "取消归档"
+      || ariaLabel === "取消归档对话"
+      || title === "取消归档对话";
+  }
+
   function archiveRowFromUnarchiveButton(button) {
     return button.closest('[data-codex-archive-page-row="true"]')
       || button.closest('[role="listitem"], [role="row"]')
@@ -1313,7 +1488,7 @@
 
   function archivedPageRows() {
     if (!archivePageHintVisible()) return [];
-    const rows = Array.from(document.querySelectorAll("button")).filter((button) => (button.textContent || "").trim() === "取消归档").map(archiveRowFromUnarchiveButton).filter(Boolean);
+    const rows = Array.from(document.querySelectorAll("button")).filter(isUnarchiveButton).map(archiveRowFromUnarchiveButton).filter(Boolean);
     rows.forEach((row) => {
       row.dataset.codexArchivePageRow = "true";
       row.setAttribute("data-codex-archive-page-row", "true");
@@ -1328,7 +1503,7 @@
 
   function archivedRows() {
     if (!archivePageHintVisible()) return [];
-    return [...archivedSessionRows(), ...archivedPageRows()];
+    return [...archivedSessionRows(), ...archivedPageRows()].filter((row) => row?.dataset?.codexLocallyDeleted !== "true");
   }
 
   function archivedPageVisible() {
@@ -2494,6 +2669,108 @@
     return value && typeof value === "object" && !Array.isArray(value) ? { ...value } : {};
   }
 
+  function retryDelayLooksExponential(delay) {
+    const ms = Math.round(Number(delay));
+    return [2000, 4000, 8000, 16000, 30000].includes(ms);
+  }
+
+  function retryTimerStackLooksRelevant() {
+    try {
+      const stack = String(new Error().stack || "");
+      return /vscode-api|app-server-manager|fetch|query|mutation|retry/i.test(stack);
+    } catch {
+      return false;
+    }
+  }
+
+  function installRetryFixedDelayPatch() {
+    const originalSetTimeout = window.__codexPlusRetryControlsOriginalSetTimeout
+      || window.__codexPlusRetryUserScriptOriginalSetTimeout
+      || window.__codexPlusOriginalSetTimeout
+      || window.setTimeout.bind(window);
+    window.__codexPlusRetryControlsOriginalSetTimeout = originalSetTimeout;
+    if (window.__codexPlusRetryControlsPatchVersion === codexRetryAttemptControlsVersion) return;
+    window.__codexPlusRetryControlsPatchVersion = codexRetryAttemptControlsVersion;
+    window.setTimeout = (handler, delay, ...args) => {
+      let nextDelay = delay;
+      if (codexPlusSettings().retryAttemptControls && retryDelayLooksExponential(delay) && retryTimerStackLooksRelevant()) {
+        nextDelay = Math.min(Number(delay), retryFixedDelayMs);
+      }
+      return originalSetTimeout(handler, nextDelay, ...args);
+    };
+  }
+
+  function setPersistedCodexAtom(key, value, signals = null) {
+    const storageKey = `${persistedAtomPrefix}${key}`;
+    const serialized = JSON.stringify(value);
+    try {
+      localStorage.setItem(storageKey, serialized);
+      window.dispatchEvent(new StorageEvent("storage", { key: storageKey, newValue: serialized, storageArea: localStorage }));
+    } catch {
+      // signals.Tr 成功时仍会更新当前 renderer 状态。
+    }
+    try {
+      if (signals && typeof signals.Tr === "function") signals.Tr(key, value);
+    } catch (error) {
+      window.__codexPlusRetryAttemptWarnings = window.__codexPlusRetryAttemptWarnings || [];
+      window.__codexPlusRetryAttemptWarnings.push(String(error?.stack || error));
+    }
+  }
+
+  function codexProviderIdsFromConfig(configPayload) {
+    const config = configPayload?.config || configPayload || {};
+    const active = typeof config.model_provider === "string" ? config.model_provider : "";
+    const ids = [active || "openai"].filter((id) => /^[A-Za-z0-9_-]+$/.test(id));
+    return uniqueValues(ids);
+  }
+
+  function retryConfigEditsForProvider(providerId, attempts) {
+    return [
+      { keyPath: `model_providers.${providerId}.request_max_retries`, value: attempts, mergeStrategy: "upsert" },
+      { keyPath: `model_providers.${providerId}.stream_max_retries`, value: attempts, mergeStrategy: "upsert" },
+    ];
+  }
+
+  async function writeCodexRetryConfig(signals, attempts) {
+    if (typeof signals.rn !== "function") return { status: "failed", message: "Codex config bridge unavailable" };
+    const hostId = new URLSearchParams(window.location.search).get("hostId") || "local";
+    const configPayload = await signals.rn("read-config", { hostId, includeLayers: false, cwd: null }).catch(() => null);
+    if (!configPayload) return { status: "failed", message: "Codex config read failed" };
+    const providerIds = codexProviderIdsFromConfig(configPayload);
+    if (providerIds.length === 0) return { status: "skipped", message: "No active model provider found" };
+    const edits = providerIds.flatMap((providerId) => retryConfigEditsForProvider(providerId, attempts));
+    return signals.rn("batch-write-config-value", { hostId, edits, filePath: null, expectedVersion: null, reloadUserConfig: true });
+  }
+
+  async function applyRetryAttemptControls() {
+    installRetryFixedDelayPatch();
+    if (!codexPlusSettings().retryAttemptControls) {
+      window.__codexPlusRetryAttemptSignature = null;
+      window.__codexPlusRetryAttemptControls = { status: "disabled", attempts: retryAttemptLimitValue, fixedDelay: true };
+      return;
+    }
+    const attempts = retryAttemptLimitValue;
+    const signature = `${codexRetryAttemptControlsVersion}:${attempts}:true`;
+    if (window.__codexPlusRetryAttemptSignature === signature) return;
+    if (window.__codexPlusRetryAttemptInFlight === signature) return;
+    window.__codexPlusRetryAttemptInFlight = signature;
+    try {
+      const signals = await import("./assets/app-server-manager-signals-C1h8B-R-.js");
+      setPersistedCodexAtom(bestOfNAtomKey, attempts, signals);
+      const result = await writeCodexRetryConfig(signals, attempts);
+      window.__codexPlusRetryAttemptSignature = signature;
+      window.__codexPlusRetryAttemptFailures = [];
+      window.__codexPlusRetryAttemptControls = { status: "ok", attempts, fixedDelay: true, configResult: result };
+    } catch (error) {
+      setPersistedCodexAtom(bestOfNAtomKey, attempts, null);
+      window.__codexPlusRetryAttemptControls = { status: "failed", attempts, fixedDelay: true, message: String(error?.message || error) };
+      window.__codexPlusRetryAttemptFailures = window.__codexPlusRetryAttemptFailures || [];
+      window.__codexPlusRetryAttemptFailures.push(String(error?.stack || error));
+    } finally {
+      if (window.__codexPlusRetryAttemptInFlight === signature) window.__codexPlusRetryAttemptInFlight = null;
+    }
+  }
+
   function uniqueValues(values) {
     return Array.from(new Set(values.filter((value) => typeof value === "string" && value.trim().length > 0)));
   }
@@ -3290,6 +3567,56 @@
     return result;
   }
 
+  const locallyDeletedSessionIds = window.__codexPlusLocallyDeletedSessionIds || new Set();
+  window.__codexPlusLocallyDeletedSessionIds = locallyDeletedSessionIds;
+
+  function normalizedDeletedSessionId(sessionId) {
+    return String(sessionId || "").replace(/^local:/, "");
+  }
+
+  function rememberDeletedSession(ref) {
+    const normalized = normalizedDeletedSessionId(ref?.session_id);
+    if (!normalized) return;
+    locallyDeletedSessionIds.add(normalized);
+    locallyDeletedSessionIds.add(`local:${normalized}`);
+  }
+
+  function forgetDeletedSession(sessionId) {
+    const normalized = normalizedDeletedSessionId(sessionId);
+    if (!normalized) return;
+    locallyDeletedSessionIds.delete(normalized);
+    locallyDeletedSessionIds.delete(`local:${normalized}`);
+    pruneLocallyDeletedSessionRows();
+    scan();
+  }
+
+  function isLocallyDeletedSession(ref) {
+    return locallyDeletedSessionIds.has(normalizedDeletedSessionId(ref?.session_id)) || locallyDeletedSessionIds.has(String(ref?.session_id || ""));
+  }
+
+  function hideDeletedRow(row) {
+    if (!row?.dataset) return;
+    row.dataset.codexLocallyDeleted = "true";
+    row.setAttribute("data-codex-locally-deleted", "true");
+  }
+
+  function showRestoredRow(row) {
+    if (!row?.dataset) return;
+    delete row.dataset.codexLocallyDeleted;
+    row.removeAttribute("data-codex-locally-deleted");
+  }
+
+  function pruneLocallyDeletedSessionRows() {
+    document.querySelectorAll("[data-app-action-sidebar-thread-id], [data-codex-archive-page-row]").forEach((row) => {
+      const ref = row.matches("[data-app-action-sidebar-thread-id]") ? sessionRefFromRow(row) : archivedRefFromRow(row);
+      if (isLocallyDeletedSession(ref)) {
+        hideDeletedRow(row);
+      } else if (row.dataset.codexLocallyDeleted === "true") {
+        showRestoredRow(row);
+      }
+    });
+  }
+
   function showToast(message, undoToken) {
     document.querySelectorAll(".codex-delete-toast").forEach((node) => node.remove());
     const toast = document.createElement("div");
@@ -3298,11 +3625,14 @@
     if (undoToken) {
       const undo = document.createElement("button");
       undo.textContent = "撤销";
-      undo.addEventListener("click", async () => {
+      undo.addEventListener("click", async (event) => {
+        event.preventDefault();
+        event.stopPropagation();
         const result = await postJson("/undo", { undo_token: undoToken });
+        if (result.status === "undone" || result.session_id) forgetDeletedSession(result.session_id);
         toast.textContent = result.message || "撤销完成";
         setTimeout(() => toast.remove(), 5000);
-      });
+      }, true);
       toast.appendChild(undo);
     }
     document.body.appendChild(toast);
@@ -3415,42 +3745,86 @@
       .replaceAll("'", "&#39;");
   }
 
-  function confirmDelete(title) {
-    document.querySelectorAll(".codex-delete-confirm-overlay").forEach((node) => node.remove());
+  function confirmDelete(title, anchor) {
+    window.__codexSessionDeleteConfirmCleanup?.();
+    document.querySelectorAll(".codex-delete-confirm-popover").forEach((node) => node.remove());
     return new Promise((resolve) => {
-      const overlay = document.createElement("div");
-      overlay.className = "codex-delete-confirm-overlay";
-      overlay.innerHTML = `
-        <div class="codex-delete-confirm-content" role="dialog" aria-modal="true" aria-label="删除会话">
-          <div class="codex-delete-confirm-title">删除会话</div>
-          <div class="codex-delete-confirm-message">删除“${escapeHtml(title)}”？</div>
-          <div class="codex-delete-confirm-actions">
-            <button type="button" data-codex-delete-cancel="true">取消</button>
-            <button type="button" data-codex-delete-confirm="true">删除</button>
-          </div>
-        </div>
+      const popover = document.createElement("div");
+      popover.className = "codex-delete-confirm-popover";
+      popover.setAttribute("role", "dialog");
+      popover.setAttribute("aria-modal", "false");
+      popover.setAttribute("aria-label", `删除会话：${title}`);
+      popover.style.visibility = "hidden";
+      popover.innerHTML = `
+        <button type="button" data-codex-delete-cancel="true">取消</button>
+        <button type="button" data-codex-delete-confirm="true">确认</button>
       `;
+      const stopConfirmEvent = (event) => {
+        event?.preventDefault?.();
+        event?.stopPropagation?.();
+        event?.stopImmediatePropagation?.();
+      };
+      const place = () => {
+        const rect = anchor?.getBoundingClientRect?.();
+        if (!rect) return;
+        const gap = 8;
+        const margin = 8;
+        let left = rect.right + gap;
+        let placement = "right";
+        if (left + popover.offsetWidth > window.innerWidth - margin) {
+          left = Math.max(margin, rect.left - popover.offsetWidth - gap);
+          placement = "left";
+        }
+        const top = Math.max(margin, Math.min(window.innerHeight - popover.offsetHeight - margin, rect.top + rect.height / 2 - popover.offsetHeight / 2));
+        popover.dataset.placement = placement;
+        popover.style.left = `${left}px`;
+        popover.style.top = `${top}px`;
+        popover.style.visibility = "visible";
+      };
+      let settled = false;
+      const cleanupController = new AbortController();
+      const cleanup = () => {
+        cleanupController.abort();
+        popover.remove();
+        if (window.__codexSessionDeleteConfirmCleanup === cancelCurrent) {
+          window.__codexSessionDeleteConfirmCleanup = null;
+        }
+      };
       const finish = (value, event) => {
-        event?.preventDefault();
-        event?.stopPropagation();
+        if (settled) return;
+        settled = true;
+        if (event) stopConfirmEvent(event);
         event?.target?.blur?.();
-        overlay.remove();
+        cleanup();
         resolve(value);
       };
-      overlay.addEventListener("click", (event) => {
-        if (event.target === overlay || event.target.closest("[data-codex-delete-cancel]")) {
+      const cancelCurrent = () => finish(false);
+      window.__codexSessionDeleteConfirmCleanup = cancelCurrent;
+      popover.addEventListener("pointerdown", stopConfirmEvent, { capture: true, signal: cleanupController.signal });
+      popover.addEventListener("click", (event) => {
+        stopConfirmEvent(event);
+        if (event.target.closest("[data-codex-delete-cancel]")) {
           finish(false, event);
           return;
         }
         if (event.target.closest("[data-codex-delete-confirm]")) {
           finish(true, event);
         }
-      }, true);
-      overlay.addEventListener("keydown", (event) => {
-        if (event.key === "Escape") finish(false, event);
-      }, true);
-      document.body.appendChild(overlay);
-      overlay.querySelector("[data-codex-delete-cancel]")?.focus();
+      }, { capture: true, signal: cleanupController.signal });
+      document.body.appendChild(popover);
+      place();
+      window.addEventListener("resize", place, { capture: true, signal: cleanupController.signal });
+      window.addEventListener("scroll", place, { capture: true, signal: cleanupController.signal });
+      setTimeout(() => {
+        if (settled || window.__codexSessionDeleteConfirmCleanup !== cancelCurrent) return;
+        document.addEventListener("pointerdown", (event) => {
+          if (!popover.contains(event.target) && event.target !== anchor) finish(false, event);
+        }, { capture: true, signal: cleanupController.signal });
+        document.addEventListener("keydown", (event) => {
+          if (event.key === "Escape") finish(false, event);
+        }, { capture: true, signal: cleanupController.signal });
+      }, 0);
+      popover.querySelector("[data-codex-delete-cancel]")?.focus();
     });
   }
 
@@ -3482,7 +3856,8 @@
   function removeDeletedRow(row, button, ref) {
     releaseDeleteFocus(row, button);
     const shouldReload = isCurrentSessionRow(row, ref);
-    row.remove();
+    hideDeletedRow(row);
+    setTimeout(() => row.remove(), 0);
     if (shouldReload) {
       window.location.reload();
     }
@@ -3517,11 +3892,12 @@
     event.stopPropagation();
     event.stopImmediatePropagation?.();
     releaseDeleteFocus(row, button);
-    confirmDelete(ref.title).then(async (confirmed) => {
+    confirmDelete(ref.title, button).then(async (confirmed) => {
       if (!confirmed) return;
       releaseDeleteFocus(row, button);
       const result = await postJson("/delete", ref);
       if (result.status === "server_deleted" || result.status === "local_deleted") {
+        rememberDeletedSession(ref);
         removeDeletedRow(row, button, ref);
         showToast(result.message || "删除成功", result.undo_token);
       } else if (isThreadMissingResult(result)) {
@@ -3782,7 +4158,7 @@
 
   async function applyProjectMove(row, button, ref, target) {
     button.disabled = true;
-    button.textContent = "移动中";
+    configureSessionActionButton(button, "move", true);
     try {
       if (target.kind === "projectless") {
         const result = await moveSessionToProjectless(ref);
@@ -3793,7 +4169,7 @@
       }
     } catch (error) {
       button.disabled = false;
-      button.textContent = "移动";
+      configureSessionActionButton(button, "move");
       showToast(`移动失败：${error?.message || error}`, null);
     }
   }
@@ -3856,6 +4232,56 @@
     originalButton.replaceWith(replacement);
   }
 
+  const sessionActionButtonConfigs = {
+    move: {
+      label: "移动会话",
+      busyLabel: "移动中",
+      icon: '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M7 7h10" /><path d="m14 4 3 3-3 3" /><path d="M17 17H7" /><path d="m10 14-3 3 3 3" /></svg>',
+    },
+    export: {
+      label: "导出 Markdown",
+      icon: '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 3v12" /><path d="m7 10 5 5 5-5" /><path d="M5 21h14" /></svg>',
+    },
+    delete: {
+      label: "删除会话",
+      icon: '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 7h16" /><path d="M10 11v6" /><path d="M14 11v6" /><path d="M6 7l1 14h10l1-14" /><path d="M9 7V4h6v3" /></svg>',
+    },
+  };
+
+  const archiveActionButtonConfigs = {
+    unarchive: {
+      label: "取消归档对话",
+      icon: '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 12h14" /><path d="m10 5 7 7-7 7" /><path d="M21 5v14" /></svg>',
+    },
+    export: sessionActionButtonConfigs.export,
+    delete: {
+      ...sessionActionButtonConfigs.delete,
+      label: "删除归档对话",
+    },
+  };
+
+  function configureSessionActionButton(button, kind, busy = false) {
+    const config = sessionActionButtonConfigs[kind];
+    if (!config) return;
+    const label = busy && config.busyLabel ? config.busyLabel : config.label;
+    button.dataset.codexActionKind = kind;
+    button.dataset.codexActionIconVersion = "1";
+    button.setAttribute("aria-label", label);
+    button.title = label;
+    button.innerHTML = config.icon;
+  }
+
+  function configureArchiveActionButton(button, kind) {
+    const config = archiveActionButtonConfigs[kind];
+    if (!config) return;
+    button.dataset.codexArchiveRowAction = kind;
+    button.dataset.codexActionKind = kind;
+    button.dataset.codexActionIconVersion = "1";
+    button.setAttribute("aria-label", config.label);
+    button.title = config.label;
+    button.innerHTML = config.icon;
+  }
+
   function attachButton(row) {
     const settings = codexPlusSettings();
     if (!settings.sessionDelete && !settings.markdownExport && !settings.projectMove) {
@@ -3894,7 +4320,7 @@
       moveButton.type = "button";
       moveButton.className = `${actionButtonClass} ${projectMoveButtonClass}`;
       moveButton.dataset.codexProjectMoveVersion = codexProjectMoveVersion;
-      moveButton.textContent = "移动";
+      configureSessionActionButton(moveButton, "move");
       const openProjectMove = (event) => openProjectMoveMenuForRow(row, moveButton, ref, event);
       installActionButtonEvents(row, moveButton, openProjectMove);
       group.appendChild(moveButton);
@@ -3905,7 +4331,7 @@
       exportButton.type = "button";
       exportButton.className = `${actionButtonClass} ${exportButtonClass}`;
       exportButton.dataset.codexExportVersion = codexExportVersion;
-      exportButton.textContent = "导出";
+      configureSessionActionButton(exportButton, "export");
       const openExport = (event) => {
         stopActionButtonEvent(row, exportButton, event);
         exportMarkdown(ref);
@@ -3919,7 +4345,7 @@
       deleteButton.type = "button";
       deleteButton.className = `${actionButtonClass} ${buttonClass}`;
       deleteButton.dataset.codexDeleteVersion = codexDeleteVersion;
-      deleteButton.textContent = "删除";
+      configureSessionActionButton(deleteButton, "delete");
       const openDeleteConfirm = (event) => openDeleteConfirmForRow(row, deleteButton, ref, event);
       installActionButtonEvents(row, deleteButton, openDeleteConfirm);
       group.appendChild(deleteButton);
@@ -3992,12 +4418,81 @@
     return archiveTitleTexts.has(value);
   }
 
+  function archiveTitleCandidateVisible(element) {
+    if (!element || element.closest?.(".window-fx-sidebar-surface, nav")) return false;
+    const rect = element.getBoundingClientRect();
+    return rect.width > 0 && rect.height > 0 && rect.x > 350;
+  }
+
   function archiveTitleContainer() {
-    const heading = Array.from(document.querySelectorAll("h1, h2, h3"))
-      .find((element) => isArchiveTitleText((element.textContent || "").trim()));
-    if (heading) return heading;
-    return Array.from(document.querySelectorAll("h1, h2, h3, div, span"))
-      .find((element) => isArchiveTitleText((element.textContent || "").trim()) && element.getBoundingClientRect().x > 350);
+    document.querySelectorAll("[data-codex-archive-title-inline]").forEach((element) => {
+      delete element.dataset.codexArchiveTitleInline;
+    });
+    const headings = Array.from(document.querySelectorAll("h1, h2, h3"));
+    const title = headings.find((element) => isArchiveTitleText((element.textContent || "").trim()) && archiveTitleCandidateVisible(element))
+      || Array.from(document.querySelectorAll("h1, h2, h3, div, span"))
+        .find((element) => isArchiveTitleText((element.textContent || "").trim()) && archiveTitleCandidateVisible(element));
+    if (!title) return null;
+    title.dataset.codexArchiveTitleInline = "true";
+    return title;
+  }
+
+  function archiveTitleTextRect(title) {
+    if (!title) return null;
+    const walker = document.createTreeWalker(title, NodeFilter.SHOW_TEXT);
+    let node = walker.nextNode();
+    while (node) {
+      const text = (node.nodeValue || "").trim();
+      if (isArchiveTitleText(text)) {
+        const range = document.createRange();
+        range.selectNodeContents(node);
+        const rect = range.getBoundingClientRect();
+        range.detach?.();
+        if (rect.width > 0 && rect.height > 0) return rect;
+      }
+      node = walker.nextNode();
+    }
+    const rect = title.getBoundingClientRect?.();
+    if (!rect || rect.width <= 0 || rect.height <= 0) return null;
+    return rect;
+  }
+
+  function positionArchivedDeleteAllButton(button, title) {
+    if (!button) return;
+    const titleRect = archiveTitleTextRect(title);
+    if (!titleRect || titleRect.width <= 0 || titleRect.height <= 0) {
+      Object.assign(button.style, {
+        position: "fixed",
+        right: "28px",
+        left: "auto",
+        top: "86px",
+        transform: "none",
+        marginLeft: "0",
+        verticalAlign: "middle",
+        zIndex: "2147482999",
+        cursor: "pointer",
+        pointerEvents: "auto",
+        maxWidth: "fit-content",
+      });
+      return;
+    }
+    const gap = 12;
+    const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0;
+    const maxLeft = viewportWidth > 0 ? Math.max(16, viewportWidth - button.offsetWidth - 16) : titleRect.right + gap;
+    const left = Math.max(16, Math.min(titleRect.right + gap, maxLeft));
+    Object.assign(button.style, {
+      position: "fixed",
+      left: `${left}px`,
+      right: "auto",
+      top: `${titleRect.top + titleRect.height / 2}px`,
+      transform: "translateY(-50%)",
+      marginLeft: "0",
+      verticalAlign: "middle",
+      zIndex: "2147482999",
+      cursor: "pointer",
+      pointerEvents: "auto",
+      maxWidth: "fit-content",
+    });
   }
 
   async function deleteArchivedSessions(rows) {
@@ -4007,29 +4502,80 @@
       if (!ref.session_id) continue;
       const result = await postJson("/delete", ref);
       if (result.status === "server_deleted" || result.status === "local_deleted") {
-        row.remove();
+        rememberDeletedSession(ref);
+        hideDeletedRow(row);
+        setTimeout(() => row.remove(), 0);
         deleted += 1;
       }
     }
     showToast(`已删除 ${deleted} 个归档会话`, null);
   }
 
+  function archiveUnarchiveButtonFromRow(row) {
+    return Array.from(row.querySelectorAll("button")).find(isUnarchiveButton);
+  }
+
+  function archiveActionGroupFromRow(row) {
+    return row.querySelector(`.${archiveActionGroupClass}`);
+  }
+
+  function restoreArchiveUnarchiveButton(unarchiveButton) {
+    if (!unarchiveButton?.isConnected || unarchiveButton.dataset.codexArchiveRowAction !== "unarchive") return;
+    unarchiveButton.classList.remove(actionButtonClass, "codex-archive-row-button");
+    delete unarchiveButton.dataset.codexArchiveRowAction;
+    delete unarchiveButton.dataset.codexActionKind;
+    delete unarchiveButton.dataset.codexActionIconVersion;
+    unarchiveButton.setAttribute("aria-label", "取消归档对话");
+    unarchiveButton.title = "取消归档对话";
+    unarchiveButton.textContent = "取消归档";
+  }
+
+  function removeArchiveRowActionGroupIfEmpty(row) {
+    const group = archiveActionGroupFromRow(row);
+    if (!group) return;
+    const unarchiveButton = archiveUnarchiveButtonFromRow(group);
+    if (unarchiveButton) {
+      group.insertAdjacentElement("beforebegin", unarchiveButton);
+      restoreArchiveUnarchiveButton(unarchiveButton);
+    }
+    group.remove();
+  }
+
+  function ensureArchiveRowActionGroup(row, unarchiveButton) {
+    let group = archiveActionGroupFromRow(row);
+    if (!group) {
+      group = document.createElement("div");
+      group.className = archiveActionGroupClass;
+      unarchiveButton.insertAdjacentElement("beforebegin", group);
+    }
+    group.dataset.codexArchiveRowActionsVersion = codexArchiveRowActionsVersion;
+    if (unarchiveButton.parentElement !== group) group.appendChild(unarchiveButton);
+    return group;
+  }
+
   function attachArchivedPageDeleteButton(row) {
     const settings = codexPlusSettings();
-    row.querySelectorAll("[data-codex-archive-row-action]").forEach((button) => button.remove());
+    row.querySelectorAll('[data-codex-archive-row-action="export"], [data-codex-archive-row-action="delete"]').forEach((button) => button.remove());
     row.dataset.codexArchiveDeleteRow = "false";
-    if (!settings.sessionDelete && !settings.markdownExport) return;
-    const unarchiveButton = Array.from(row.querySelectorAll("button")).find((button) => (button.textContent || "").trim() === "取消归档");
-    if (!unarchiveButton) return;
+    const unarchiveButton = archiveUnarchiveButtonFromRow(row);
+    if (!unarchiveButton) {
+      removeArchiveRowActionGroupIfEmpty(row);
+      return;
+    }
+    if (!settings.sessionDelete && !settings.markdownExport) {
+      removeArchiveRowActionGroupIfEmpty(row);
+      return;
+    }
     row.dataset.codexArchiveDeleteRow = "true";
     row.dataset.codexArchiveRowActionsVersion = codexArchiveRowActionsVersion;
-    let insertionPoint = unarchiveButton;
+    const group = ensureArchiveRowActionGroup(row, unarchiveButton);
+    unarchiveButton.classList.add(actionButtonClass, "codex-archive-row-button");
+    configureArchiveActionButton(unarchiveButton, "unarchive");
     if (settings.markdownExport) {
       const exportButton = document.createElement("button");
       exportButton.type = "button";
-      exportButton.className = `codex-archive-delete-all codex-archive-row-button ${exportButtonClass}`;
-      exportButton.dataset.codexArchiveRowAction = "export";
-      exportButton.textContent = "导出";
+      exportButton.className = `${actionButtonClass} codex-archive-row-button ${exportButtonClass}`;
+      configureArchiveActionButton(exportButton, "export");
       ["pointerdown", "mousedown", "mouseup", "touchstart"].forEach((eventName) => {
         exportButton.addEventListener(eventName, stopArchivedButtonEvent, true);
       });
@@ -4042,15 +4588,13 @@
         }
         await exportMarkdown(ref);
       }, true);
-      insertionPoint.insertAdjacentElement("afterend", exportButton);
-      insertionPoint = exportButton;
+      group.appendChild(exportButton);
     }
     if (settings.sessionDelete) {
       const deleteButton = document.createElement("button");
       deleteButton.type = "button";
-      deleteButton.className = `codex-archive-delete-all codex-archive-row-button ${buttonClass}`;
-      deleteButton.dataset.codexArchiveRowAction = "delete";
-      deleteButton.textContent = "删除";
+      deleteButton.className = `${actionButtonClass} codex-archive-row-button ${buttonClass}`;
+      configureArchiveActionButton(deleteButton, "delete");
       ["pointerdown", "mousedown", "mouseup", "touchstart"].forEach((eventName) => {
         deleteButton.addEventListener(eventName, stopArchivedButtonEvent, true);
       });
@@ -4061,16 +4605,18 @@
           showToast("删除失败：未找到归档会话 ID", null);
           return;
         }
-        if (!(await confirmDelete(ref.title))) return;
+        if (!(await confirmDelete(ref.title, deleteButton))) return;
         const result = await postJson("/delete", ref);
         if (result.status === "server_deleted" || result.status === "local_deleted") {
-          row.remove();
+          rememberDeletedSession(ref);
+          hideDeletedRow(row);
+          setTimeout(() => row.remove(), 0);
           showToast(result.message || "删除成功", result.undo_token);
         } else {
           showToast(result.message || "删除失败", null);
         }
       }, true);
-      insertionPoint.insertAdjacentElement("afterend", deleteButton);
+      group.appendChild(deleteButton);
     }
   }
 
@@ -4085,23 +4631,29 @@
       existingButton?.remove();
       return;
     }
-    if (existingButton?.dataset.codexArchiveDeleteAllVersion === codexArchiveDeleteAllVersion) return;
+    const title = archiveTitleContainer();
+    if (existingButton?.dataset.codexArchiveDeleteAllVersion === codexArchiveDeleteAllVersion) {
+      if (existingButton.parentElement !== document.body) document.body.appendChild(existingButton);
+      positionArchivedDeleteAllButton(existingButton, title);
+      return;
+    }
     existingButton?.remove();
     const button = document.createElement("button");
     button.type = "button";
-    button.className = "codex-archive-delete-all codex-archive-action-bar";
+    button.className = "codex-archive-delete-all codex-archive-action-bar codex-delete-button";
     Object.assign(button.style, {
-      position: "static",
-      marginLeft: "12px",
+      position: "fixed",
+      marginLeft: "0",
       verticalAlign: "middle",
       zIndex: "2147482999",
       cursor: "pointer",
       pointerEvents: "auto",
       maxWidth: "fit-content",
-      alignSelf: "flex-start",
     });
     button.dataset.codexArchiveDeleteAll = "true";
     button.dataset.codexArchiveDeleteAllVersion = codexArchiveDeleteAllVersion;
+    button.setAttribute("aria-label", "删除全部归档");
+    button.title = "删除全部归档";
     button.textContent = "删除全部归档";
     ["pointerdown", "mousedown", "mouseup", "touchstart"].forEach((eventName) => {
       button.addEventListener(eventName, stopArchivedButtonEvent, true);
@@ -4112,17 +4664,13 @@
       event.stopImmediatePropagation?.();
       const currentRows = archivedRows();
       if (currentRows.length === 0) return;
-      if (!(await confirmDelete(`全部 ${currentRows.length} 个归档会话`))) return;
+      if (!(await confirmDelete(`全部 ${currentRows.length} 个归档会话`, button))) return;
       await deleteArchivedSessions(currentRows);
     };
     button.addEventListener("pointerup", openArchivedDeleteAllConfirm, true);
     button.addEventListener("click", openArchivedDeleteAllConfirm, true);
-    const title = archiveTitleContainer();
-    if (title) {
-      title.insertAdjacentElement("afterend", button);
-    } else {
-      document.body.appendChild(button);
-    }
+    document.body.appendChild(button);
+    positionArchivedDeleteAllButton(button, title);
   }
 
   function truncateTimelineQuestion(text) {
@@ -4796,9 +5344,11 @@
   }
 
   function scanDeferred() {
+    applyRetryAttemptControls();
     enablePluginEntry();
     unblockPluginInstallButtons();
     patchCodexModelWhitelist();
+    pruneLocallyDeletedSessionRows();
     sessionRows().forEach((row) => {
       tryAttachButton(row);
       installBulkExportSelectionControl(row);
@@ -4831,7 +5381,7 @@
   function isExtensionUiNode(node) {
     return !!node?.closest?.([
       ".codex-delete-toast",
-      ".codex-delete-confirm-overlay",
+      ".codex-delete-confirm-popover",
       ".codex-plus-modal-overlay",
       `.${projectMoveOverlayClass}`,
       `.${timelineClass}`,
@@ -4956,6 +5506,7 @@
     cancelAnimationFrame(codexPlusResizeRafId);
     codexPlusResizeRafId = requestAnimationFrame(() => {
       updateFloatingCodexPlusMenuPosition(document.getElementById(codexPlusMenuId));
+      runScanStep(installArchivedDeleteAllButton);
       runScanStep(refreshConversationTimeline);
     });
   };

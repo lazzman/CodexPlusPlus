@@ -18,50 +18,66 @@
 
 Codex++ 是面向 Codex App 的外部增强启动器和管理工具。它不修改 Codex App 原始安装文件，而是通过外部 launcher 启动 Codex，并使用 Chromium DevTools Protocol 注入增强脚本。
 
-本仓库是个人 Fork 的同步维护版本。维护目标是跟踪上游 `origin/main` 和开放 PR，人工评估后把适合本 Fork 的改动 rebase 到本地 `main`，并只推送到 `fork/main`；不向 `origin` 推送。
+本仓库是个人 Fork 的同步维护版本。维护目标是监控 `origin` 的开放 PR 和 `origin/main`，人工评估后把适合本 Fork 的改动 rebase 到本地 `main`，并只推送到 `fork/main`，不推送到 `origin`。
 
 ## 目录
 
-- [快速使用](#快速使用)
-- [主要功能](#主要功能)
-- [中转注入](#中转注入)
-- [增强功能](#增强功能)
-- [自动更新与安装包](#自动更新与安装包)
-- [数据位置](#数据位置)
+- [Windows 使用](#windows-使用)
+- [macOS 使用](#macos-使用)
+- [Fork 维护策略](#fork-维护策略)
+- [功能亮点](#功能亮点)
+- [用户脚本迁移提示](#用户脚本迁移提示)
+- [Provider 同步](#provider-同步)
+- [常用命令](#常用命令)
 - [常见问题](#常见问题)
 - [开发](#开发)
 - [反馈](#反馈)
 
-## 快速使用
+## Windows 使用
 
 从 [GitHub Releases](https://github.com/BigPizzaV3/CodexPlusPlus/releases) 下载最新版安装包：
 
-- Windows：`CodexPlusPlus-*-windows-x64-setup.exe`
-- macOS Intel：`CodexPlusPlus-*-macos-x64.dmg`
-- macOS Apple Silicon：`CodexPlusPlus-*-macos-arm64.dmg`
+- `CodexPlusPlus-*-windows-x64-setup.exe`
 
 安装后会有两个入口：
 
 - `Codex++`：静默启动入口，不显示管理界面，只负责启动 Codex 并注入增强功能。
 - `Codex++ 管理工具`：Tauri 控制面板，用于启动、检查、修复、更新、配置中转注入、管理增强功能和用户脚本。
 
-Windows 安装包会创建桌面和开始菜单快捷方式。macOS DMG 会安装 `/Applications/Codex++.app` 和 `/Applications/Codex++ 管理工具.app`。
+Windows 安装包会创建桌面和开始菜单快捷方式。
 
-## 主要功能
+## macOS 使用
 
-- Rust 后端和静默 launcher，启动时不依赖 Python 环境。
-- Tauri + React 管理工具，支持深色/浅色切换。
-- 外部 CDP 注入，不改 `app.asar`，不向 Codex 安装目录写入 DLL。
-- 中转注入模式：支持多个中转配置，写入 `CodexPlusPlus` provider，并可切回官方 ChatGPT 登录态。
-- 传统增强模式：插件入口解锁、特殊插件强制安装、会话删除、Markdown 导出、项目移动、Timeline 等。
-- 用户脚本独立管理，可在启动时注入自定义脚本。
-- Provider 同步：启动前同步本地会话 metadata，切换供应商后旧会话仍可见。
-- Zed 打开入口：识别远程 SSH 上下文后，可从 Codex 直接打开对应文件到 Zed Remote Development。
-- GitHub Release 自动更新，管理工具和静默启动器都会检测可用更新。
-- Windows 单实例、无黑框启动、管理员权限清单、系统桌面路径识别。
-- macOS x64/arm64 分架构 DMG，静默入口隐藏 Dock 图标。
+下载适合架构的 DMG：
 
-## 痛点与解决
+- Intel：`CodexPlusPlus-*-macos-x64.dmg`
+- Apple Silicon：`CodexPlusPlus-*-macos-arm64.dmg`
+
+安装后会生成 `/Applications/Codex++.app` 和 `/Applications/Codex++ 管理工具.app`。
+
+## Fork 维护策略
+
+- 上游仓库使用 `origin`，个人 Fork 使用 `fork`。
+- 日常同步先监控 `origin` 的开放 PR 和 `origin/main`，只做汇总、评估和记录，不自动合入开放 PR。
+- 需要同步上游主线时，先抓取远端，再把本地 `main` rebase 到 `origin/main`。
+- 本 Fork 的维护提交只推送到 `fork/main`，不推送到 `origin`。
+- 合入或放弃上游 PR 时，同步维护 `docs/pr-integration-record.md`，说明已合入、部分摘取、暂缓或未合入原因。
+
+## 功能亮点
+
+- 顶部 `Codex++` 菜单：集中管理增强功能。
+- 插件入口解锁：API Key 模式下显示并启用插件入口。
+- 特殊插件强制安装：解除 App unavailable / 应用不可用导致的前端安装禁用。
+- 重试次数控制：可选把 best-of 尝试数和当前 provider 请求/流式重试上限提升到 100。
+- 会话删除：悬停显示删除按钮，删除前确认并支持撤销。
+- Markdown 导出：按本地 rollout 导出带时间戳的会话 Markdown。
+- 批量导出 ZIP：多选会话后一次导出 Markdown ZIP，并记录失败摘要。
+- 会话项目移动：把会话移动到普通对话或其他本地项目。
+- 批量移动：多选会话后移动到普通对话或本地项目，并显示进度和失败记录。
+- 对话 Timeline：右侧显示用户提问时间线，悬停摘要，点击跳转。
+- Provider 同步：切换 model_provider 或供应商时不丢历史会话。
+- Windows 快捷方式、卸载项、GitHub Release 更新。
+- macOS `/Applications/Codex++.app` 生成。
 
 API Key 登录模式下，Codex 原生插件入口会提示需要登录 ChatGPT，导致插件功能无法正常使用：
 
@@ -80,51 +96,60 @@ Codex++ 启动后会解锁插件入口，并在会话列表悬停时显示删除
 ![Codex++ 后端状态指示灯](docs/images/backend-status-indicator.png)
 ![Codex++ 设置面板](docs/images/settings-panel.png)
 
-## 中转注入
+项目图表：
 
-中转注入适合已经在 Codex/ChatGPT 中完成官方账号登录，同时希望把模型请求转到自定义兼容 API 的场景。
+![Contributors](https://contrib.rocks/image?repo=BigPizzaV3/CodexPlusPlus)
+![Star History](https://api.star-history.com/svg?repos=BigPizzaV3/CodexPlusPlus&type=Date)
 
-在管理工具的“中转注入”页面：
+## 用户脚本迁移提示
 
-1. 确认已经检测到 ChatGPT 登录状态。
-2. 添加一个或多个中转配置，填写 Base URL 和 Key。
-3. 选择当前配置并应用中转注入。
-4. 启动 `Codex++`。
+早期版本依赖本机用户脚本提供重试控制、删除稳定性、插件安装点击兜底、归档页按钮样式、设置页清理和侧边栏图标按钮。升级到当前版本后，这些能力已迁入核心 `renderer-inject.js`。
 
-Codex++ 会在 `~/.codex/config.toml` 中写入类似配置：
+如果你的 `~/.config/Codex++/user_scripts/` 中仍有旧脚本，例如 `10-retry-attempt-controls.js` 到 `60-session-actions-icon-buttons.js`，建议禁用或删除它们，避免重复 patch、重复 `MutationObserver` 或重复样式覆盖。用户脚本系统仍保留给个人扩展使用。
 
-```toml
-model_provider = "CodexPlusPlus"
+## Provider 同步
 
-[model_providers.CodexPlusPlus]
-name = "CodexPlusPlus"
-wire_api = "responses"
-requires_openai_auth = true
-base_url = "https://example.com/v1"
-experimental_bearer_token = "sk-..."
+启用 `Provider 同步` 后，Codex++ 会在启动前同步本地会话 metadata，让切换 model_provider 或供应商时不丢历史会话。
+
+同步范围包括 rollout 文件、SQLite 线程记录和项目路径缓存；只修复会话可见性 metadata，不改写消息内容。遇到文件锁或 SQLite 忙碌时会跳过并继续启动。
+
+## 常用命令
+
+```bash
+# 安装依赖
+python -m pip install -e .
+
+# 启动
+python -m codex_session_delete launch
+
+# 安装快捷方式 / app bundle
+python -m codex_session_delete setup
+
+# 卸载
+python -m codex_session_delete remove
+
+# 同时删除日志和备份
+python -m codex_session_delete remove --remove-data
+
+# 检查更新 / 更新
+python -m codex_session_delete check-update
+python -m codex_session_delete update
+
+# Windows watcher 自动接管
+python -m codex_session_delete watch-install
+python -m codex_session_delete watch-remove
+python -m codex_session_delete watch-disable
+python -m codex_session_delete watch-enable
 ```
 
-如果需要回到官方登录态，在“中转注入”页面点击清除 API 模式即可移除 `OPENAI_API_KEY` 相关配置并切回官方 ChatGPT 登录模式。
+直接指定 Codex 安装目录：
 
-## 增强功能
-
-增强功能在管理工具中统一开关。默认开启增强注入；关闭后不会注入 Codex++ 菜单和脚本。
-
-如果启用中转注入模式，插件入口解锁和强制安装不再需要，界面会提示“中转注入模式下无需开启”。会话删除、导出、移动、Timeline 和用户脚本等增强仍可继续使用。
-
-## 自动更新与安装包
-
-Codex++ 通过 GitHub Release 发布安装包。Windows 会生成 NSIS 安装程序，macOS 会生成 Intel x64 和 Apple Silicon arm64 两个 DMG。
-
-管理工具的“关于”页可以检查并启动更新。静默启动器发现新版本时会拉起管理工具并进入更新提示。
-
-## 数据位置
-
-- Codex 配置：`~/.codex/config.toml`
-- Codex 登录状态：`~/.codex/auth.json`
-- Codex 本地数据库：`~/.codex/state_5.sqlite`
-- Codex++ 状态与日志：`~/.codex-session-delete/`
-- Provider 同步备份：`~/.codex/backups_state/provider-sync`
+```bash
+python -m codex_session_delete launch \
+  --app-dir "C:/Program Files/WindowsApps/OpenAI.Codex_xxx/app" \
+  --debug-port 9229 \
+  --helper-port 57321
+```
 
 ## 常见问题
 
