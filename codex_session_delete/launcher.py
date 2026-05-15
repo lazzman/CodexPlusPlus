@@ -21,7 +21,6 @@ from codex_session_delete.api_adapter import ApiAdapter, UnavailableApiAdapter
 from codex_session_delete.backup_store import BackupStore
 from codex_session_delete.cdp import evaluate_script, evaluate_user_scripts, inject_file_into_all_pages, open_devtools
 from codex_session_delete.helper_server import HelperServer
-from codex_session_delete.helper_server import fetch_ad_list
 from codex_session_delete.markdown_exporter import MarkdownExportService
 from codex_session_delete.models import DeleteResult, DeleteStatus, SessionRef
 from codex_session_delete.provider_sync import ProviderSyncStatus, run_provider_sync
@@ -158,15 +157,11 @@ class CodexPlusRuntime:
                 return {"status": "failed", "message": f"后端修复失败：{exc}"}
             return {"status": "ok", "message": "后端已修复"}
 
-    def ads(self) -> dict[str, object]:
-        return fetch_ad_list()
-
     def codex_config_model(self) -> dict[str, object]:
         return read_codex_config_model()
 
     def codex_model_catalog(self) -> dict[str, object]:
         return read_codex_model_catalog()
-
     def _close_bridge_socket(self) -> None:
         socket_obj = self.bridge_socket
         self.bridge_socket = None
@@ -1075,8 +1070,6 @@ def handle_bridge_request(
         return zed_remote.resolve_ssh_target_response(payload)
     if path == "/zed-remote/open" and runtime:
         return zed_remote.open_zed_remote(payload)
-    if path == "/ads" and runtime:
-        return runtime.ads()
     if path == "/codex-model-catalog" and runtime:
         return runtime.codex_model_catalog()
     if path == "/codex-config-model" and runtime:

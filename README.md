@@ -18,6 +18,8 @@
 
 Codex++ 是面向 Codex App 的外部增强启动器和管理工具。它不修改 Codex App 原始安装文件，而是通过外部 launcher 启动 Codex，并使用 Chromium DevTools Protocol 注入增强脚本。
 
+本仓库是个人 Fork 的同步维护版本。维护目标是跟踪上游 `origin/main` 和开放 PR，人工评估后把适合本 Fork 的改动 rebase 到本地 `main`，并只推送到 `fork/main`；不向 `origin` 推送。
+
 ## 目录
 
 - [快速使用](#快速使用)
@@ -28,7 +30,7 @@ Codex++ 是面向 Codex App 的外部增强启动器和管理工具。它不修�
 - [数据位置](#数据位置)
 - [常见问题](#常见问题)
 - [开发](#开发)
-- [交流与支持](#交流与支持)
+- [反馈](#反馈)
 
 ## 快速使用
 
@@ -182,11 +184,11 @@ scripts/installer/
 
 不建议继续使用旧 Python 入口；仓库中保留的 `codex_session_delete/` 主要用于迁移参考和兼容历史代码。
 
-## 交流与支持
+## 反馈
 
-欢迎扫码加入 Codex++ 交流群，反馈问题、交流使用体验或提出新功能建议：
+问题反馈和功能建议请使用 GitHub Issues：
 
-<img src="docs/images/discussion-group-qr.jpg" alt="Codex++ 交流群二维码" width="260">
+<https://github.com/BigPizzaV3/CodexPlusPlus/issues>
 
 ## 友情链接
 

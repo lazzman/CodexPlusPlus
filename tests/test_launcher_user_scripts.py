@@ -1,5 +1,4 @@
 from codex_session_delete.launcher import handle_bridge_request, read_codex_config_model, read_codex_model_catalog
-from codex_session_delete.models import ExportResult, ExportStatus
 from codex_session_delete.models import BulkExportResult, ExportResult, ExportStatus
 from codex_session_delete.settings_store import SettingsStore
 from codex_session_delete.user_scripts import UserScriptManager
@@ -42,7 +41,6 @@ class FakeRuntime:
         self.injected = []
         self.devtools_opened = False
         self.repaired = False
-        self.ads_payload = {"version": 1, "ads": [{"id": "runtime-ad", "type": "normal", "title": "Runtime Ad", "description": "Loaded", "url": "https://0029.org", "highlights": []}]}
 
     def reload_user_scripts(self):
         bundle = self.user_scripts.build_enabled_bundle()
@@ -60,9 +58,6 @@ class FakeRuntime:
         self.repaired = True
         return {"status": "ok", "message": "后端已修复"}
 
-    def ads(self):
-        return self.ads_payload
-
     def codex_config_model(self):
         return {"status": "ok", "model": "qwen3-coder", "model_provider": "dashscope", "provider_name": "DashScope", "models": ["qwen3-coder"]}
 
@@ -76,8 +71,6 @@ class FakeRuntime:
             "models": ["qwen3-coder", "deepseek-coder"],
             "sources": [{"type": "config", "status": "ok", "models": 2}],
         }
-
-
 
 def test_handle_bridge_request_lists_user_scripts(tmp_path):
     builtin = tmp_path / "builtin"
@@ -450,13 +443,14 @@ def test_handle_bridge_request_sets_backend_settings(monkeypatch, tmp_path):
     assert store.load().provider_sync_enabled is True
 
 
-def test_handle_bridge_request_returns_ads(tmp_path):
+def test_handle_bridge_request_does_not_expose_ads(tmp_path):
     manager = UserScriptManager(tmp_path / "builtin", tmp_path / "user", tmp_path / "config.json")
     runtime = FakeRuntime(manager)
 
     result = handle_bridge_request(FakeDeleteService(), FakeExportService(), "/ads", {}, runtime)
 
-    assert result["ads"][0]["id"] == "runtime-ad"
+    assert result["status"] == "failed"
+    assert result["message"] == "Unknown bridge path"
 
 
 def test_handle_bridge_request_exports_markdown(tmp_path):

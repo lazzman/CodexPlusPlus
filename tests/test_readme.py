@@ -1,12 +1,13 @@
 from pathlib import Path
 
 
-def test_readme_limits_discussion_group_qr_size():
+def test_readme_has_issues_feedback_without_group_or_sponsor_links():
     text = Path("README.md").read_text(encoding="utf-8")
 
-    assert '<img src="docs/images/discussion-group-qr.jpg"' in text
-    assert 'width="260"' in text
-    assert '![Codex++ 交流群二维码](docs/images/discussion-group-qr.jpg)' not in text
+    assert "GitHub Issues" in text
+    assert "https://github.com/BigPizzaV3/CodexPlusPlus/issues" in text
+    for forbidden in ("交流群", "discussion-group-qr", "赞赏", "请我喝杯咖啡", "RawChat", "sponsor-alipay", "sponsor-wechat"):
+        assert forbidden not in text
 
 
 def test_readme_includes_codex_plus_icon_and_toc():
@@ -18,6 +19,7 @@ def test_readme_includes_codex_plus_icon_and_toc():
     assert Path("docs/images/settings-panel.png").exists()
     assert "## 目录" in text
     assert "- [Windows 使用](#windows-使用)" in text
+    assert "- [Fork 维护策略](#fork-维护策略)" in text
     assert "- [常见问题](#常见问题)" in text
 
 
@@ -40,17 +42,14 @@ def test_readme_documents_provider_sync_as_no_session_loss():
     assert "不丢历史会话" in text
 
 
-def test_readme_includes_sponsor_qr_codes_near_front():
+def test_readme_documents_personal_fork_sync_policy():
     text = Path("README.md").read_text(encoding="utf-8")
 
-    assert "## 赞赏支持" in text
-    assert "请我喝杯咖啡" in text
-    assert '<img src="docs/images/sponsor-alipay.jpg"' in text
-    assert '<img src="docs/images/sponsor-wechat.jpg"' in text
-    assert 'width="220"' in text
-    assert Path("docs/images/sponsor-alipay.jpg").exists()
-    assert Path("docs/images/sponsor-wechat.jpg").exists()
-    assert text.index("## 赞赏支持") < text.index("## 功能亮点")
+    assert "本仓库是个人 Fork 的同步维护版本" in text
+    assert "监控 `origin` 的开放 PR 和 `origin/main`" in text
+    assert "不自动合入开放 PR" in text
+    assert "rebase 到 `origin/main`" in text
+    assert "只推送到 `fork/main`，不推送到 `origin`" in text
 
 
 def test_english_readme_exists_and_matches_core_sections():
@@ -61,9 +60,14 @@ def test_english_readme_exists_and_matches_core_sections():
     assert "[中文](README.md)" not in text
     assert "Provider Sync" in text
     assert "switch model_provider without losing historical conversations" in text
+    assert "personally maintained fork" in text
+    assert "Open upstream PRs are monitored" in text
+    assert "pushed only to `fork/main`, never to `origin`" in text
     assert "img.shields.io/github/v/release/BigPizzaV3/CodexPlusPlus" in text
     assert "contrib.rocks/image?repo=BigPizzaV3/CodexPlusPlus" in text
     assert "api.star-history.com/svg?repos=BigPizzaV3/CodexPlusPlus" in text
+    for forbidden in ("discussion group", "buy me a coffee", "RawChat", "sponsor-alipay", "sponsor-wechat"):
+        assert forbidden not in text
 
 
 def test_readme_links_lINUX_do_without_image():

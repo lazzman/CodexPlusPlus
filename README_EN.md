@@ -18,6 +18,8 @@
 
 Codex++ is an external enhancement launcher and manager for the Codex App. It does not modify the original Codex installation. Instead, it starts Codex externally and injects enhancements through the Chromium DevTools Protocol.
 
+This repository is a personally maintained fork. The maintenance workflow is to monitor upstream `origin/main` and open PRs, manually evaluate suitable changes, rebase the local `main` onto `origin/main`, and push only to `fork/main`; do not push to `origin`.
+
 ## Contents
 
 - [Quick Start](#quick-start)
@@ -28,7 +30,7 @@ Codex++ is an external enhancement launcher and manager for the Codex App. It do
 - [Data Locations](#data-locations)
 - [FAQ](#faq)
 - [Development](#development)
-- [Community and Support](#community-and-support)
+- [Feedback](#feedback)
 
 ## Quick Start
 
@@ -224,11 +226,11 @@ scripts/installer/
 
 The old Python entry points are no longer recommended. The remaining `codex_session_delete/` package is kept mainly for migration reference and historical compatibility.
 
-## Community and Support
+## Feedback
 
-Scan the QR code to join the Codex++ discussion group, report issues, share usage notes, or suggest features:
+Please use GitHub Issues for bug reports and feature requests:
 
-<img src="docs/images/discussion-group-qr.jpg" alt="Codex++ discussion group QR code" width="260">
+<https://github.com/BigPizzaV3/CodexPlusPlus/issues>
 
 ## Friendly Links
 
