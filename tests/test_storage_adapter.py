@@ -258,6 +258,27 @@ def test_move_codex_thread_workspace_updates_db_and_rollout_session_meta(tmp_pat
     assert '"id":"other","cwd":"/old/project"' in text
 
 
+def test_move_codex_thread_to_projectless_clears_db_and_rollout_session_meta(tmp_path):
+    db_path = tmp_path / "state_5.sqlite"
+    rollout_path = tmp_path / "rollout.jsonl"
+    rollout_path.write_text(
+        '{"type":"session_meta","payload":{"id":"t1","cwd":"/old/project","title":"Codex Thread"}}\n',
+        encoding="utf-8",
+    )
+    create_codex_thread_db(db_path, rollout_path)
+    adapter = SQLiteStorageAdapter(db_path, BackupStore(tmp_path / "backups"))
+
+    result = adapter.move_codex_thread_to_projectless(SessionRef(session_id="local:t1", title="Codex Thread"))
+
+    assert result["status"] == "moved"
+    assert result["previous_cwd"] == "/old/project"
+    assert result["target_cwd"] == ""
+    assert result["rollout_updated"] is True
+    with sqlite3.connect(db_path) as db:
+        assert db.execute("SELECT cwd FROM threads WHERE id = 't1'").fetchone()[0] == ""
+    assert '"id":"t1","cwd":""' in rollout_path.read_text(encoding="utf-8")
+
+
 def test_codex_thread_sort_key_returns_thread_timestamps(tmp_path):
     db_path = tmp_path / "state_5.sqlite"
     rollout_path = tmp_path / "rollout.jsonl"

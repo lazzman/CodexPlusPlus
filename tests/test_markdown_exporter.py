@@ -1,5 +1,7 @@
 import sqlite3
+import zipfile
 from datetime import datetime
+from io import BytesIO
 
 from codex_session_delete.markdown_exporter import MarkdownExportService
 from codex_session_delete.models import ExportStatus, SessionRef
@@ -180,3 +182,48 @@ def test_markdown_exporter_fails_when_thread_missing_rollout_missing_or_no_messa
     assert missing_thread.status == ExportStatus.FAILED
     assert missing_rollout.status == ExportStatus.FAILED
     assert no_messages.status == ExportStatus.FAILED
+
+
+def test_markdown_exporter_exports_multiple_sessions_as_zip_with_failures(tmp_path):
+    db_path = tmp_path / "state_5.sqlite"
+    first_rollout = tmp_path / "first.jsonl"
+    second_rollout = tmp_path / "second.jsonl"
+    first_rollout.write_text(
+        '{"type":"response_item","timestamp":"2026-05-10T13:12:06Z","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"First"}]}}\n',
+        encoding="utf-8",
+    )
+    second_rollout.write_text(
+        '{"type":"response_item","timestamp":"2026-05-10T13:12:06Z","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"Second"}]}}\n',
+        encoding="utf-8",
+    )
+    create_codex_thread_db(db_path, first_rollout, thread_id="t1", title="Same Title")
+    with sqlite3.connect(db_path) as db:
+        db.execute(
+            "INSERT INTO threads (id, rollout_path, title, archived, archived_at) VALUES (?, ?, ?, 0, NULL)",
+            ("t2", str(second_rollout), "Same Title"),
+        )
+    service = MarkdownExportService(db_path)
+
+    result = service.export_zip([
+        SessionRef(session_id="t1", title="First"),
+        SessionRef(session_id="t2", title="Second"),
+        SessionRef(session_id="missing", title="Missing"),
+    ])
+
+    assert result.status == ExportStatus.EXPORTED
+    assert result.filename == "codex-sessions-2-of-3.zip"
+    assert result.exported_count == 2
+    assert result.failed_count == 1
+    assert result.failures == [{"session_id": "missing", "title": "Missing", "message": "未找到对应会话"}]
+    with zipfile.ZipFile(BytesIO(result.zip_bytes())) as archive:
+        names = sorted(archive.namelist())
+        assert names == ["Same Title-t1.md", "Same Title-t2.md", "export-failures.md"]
+        assert "First" in archive.read("Same Title-t1.md").decode("utf-8")
+        assert "Missing" in archive.read("export-failures.md").decode("utf-8")
+
+
+def test_markdown_exporter_rejects_empty_zip_selection(tmp_path):
+    result = MarkdownExportService(tmp_path / "missing.sqlite").export_zip([])
+
+    assert result.status == ExportStatus.FAILED
+    assert result.message == "未选择可导出的会话"

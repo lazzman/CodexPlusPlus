@@ -4,6 +4,12 @@
   const exportButtonClass = "codex-export-button";
   const projectMoveButtonClass = "codex-project-move-button";
   const projectMoveOverlayClass = "codex-project-move-overlay";
+  const bulkExportCheckboxClass = "codex-bulk-export-checkbox";
+  const bulkExportBarClass = "codex-bulk-export-bar";
+  const bulkMoveCheckboxClass = "codex-bulk-move-checkbox";
+  const bulkMoveBarClass = "codex-bulk-move-bar";
+  const bulkMoveProgressClass = "codex-bulk-move-progress";
+  const bulkMoveTriggerClass = "codex-bulk-move-trigger";
   const actionButtonClass = "codex-session-action-button";
   const actionGroupClass = "codex-session-actions";
   const timelineClass = "codex-conversation-timeline";
@@ -26,6 +32,7 @@
   const projectMoveProjectionTtlMs = 24 * 60 * 60 * 1000;
   const projectMoveProjectionSettleMs = 5 * 60 * 1000;
   const projectMoveRefreshDelaysMs = [50, 250, 750, 1500];
+  const bulkMoveProgressMinVisibleMs = 700;
   const chatsSortRefreshIntervalMs = 1500;
   const chatsSortDbRefreshIntervalMs = 5000;
   const styleId = "codex-delete-style";
@@ -128,6 +135,69 @@
         background: #dbeafe;
         color: #1d4ed8;
       }
+      .${bulkExportCheckboxClass},
+      .${bulkMoveCheckboxClass} {
+        position: absolute;
+        left: 8px;
+        top: 50%;
+        z-index: 22;
+        width: 16px;
+        height: 16px;
+        margin: 0;
+        transform: translateY(-50%);
+        accent-color: #10a37f;
+      }
+      [data-codex-bulk-export-mode="true"],
+      [data-codex-bulk-move-mode="true"] {
+        padding-left: 30px !important;
+      }
+      [data-codex-bulk-export-selected="true"],
+      [data-codex-bulk-move-selected="true"] {
+        background: rgba(16,163,127,.12) !important;
+      }
+      .${bulkExportBarClass},
+      .${bulkMoveBarClass} {
+        position: fixed;
+        left: 50%;
+        bottom: 18px;
+        z-index: 2147483001;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-width: min(420px, calc(100vw - 32px));
+        transform: translateX(-50%);
+        border: 1px solid rgba(255,255,255,.14);
+        border-radius: 10px;
+        background: rgba(24,24,27,.96);
+        color: #f4f4f5;
+        padding: 10px 12px;
+        font: 13px system-ui, sans-serif;
+        box-shadow: 0 16px 48px rgba(0,0,0,.28);
+      }
+      .${bulkMoveBarClass} {
+        display: grid;
+        grid-template-columns: 1fr auto auto;
+      }
+      .${bulkExportBarClass} button,
+      .${bulkMoveBarClass} button {
+        border: 1px solid rgba(255,255,255,.22);
+        border-radius: 7px;
+        background: rgba(255,255,255,.12);
+        color: #f4f4f5;
+        padding: 6px 10px;
+        cursor: pointer;
+      }
+      .${bulkExportBarClass} button[data-codex-bulk-export-submit],
+      .${bulkMoveBarClass} button[data-codex-bulk-move-submit] {
+        border-color: #10a37f;
+        background: #10a37f;
+        color: #fff;
+      }
+      .${bulkExportBarClass} button:disabled,
+      .${bulkMoveBarClass} button:disabled {
+        cursor: not-allowed;
+        opacity: .55;
+      }
       .${projectMoveButtonClass} {
         border-color: #10a37f;
         background: #d1fae5;
@@ -182,6 +252,12 @@
         inset: 0;
         z-index: 2147483200;
         background: rgba(15,23,42,.28);
+        opacity: 1;
+        transition: opacity 200ms ease;
+      }
+      .${projectMoveOverlayClass}[data-codex-project-move-closing="true"] {
+        opacity: 0;
+        pointer-events: none;
       }
       .codex-project-move-panel {
         position: fixed;
@@ -216,6 +292,21 @@
       .codex-project-move-empty { padding: 18px 12px; color: #6b7280; text-align: center; }
       .codex-project-move-hidden { display: none !important; }
       [data-codex-project-move-injected-list="true"] { display: flex; flex-direction: column; }
+      .${bulkMoveProgressClass} {
+        grid-column: 1 / -1;
+        height: 3px;
+        overflow: hidden;
+        border-radius: 999px;
+        background: rgba(255,255,255,.16);
+      }
+      .${bulkMoveProgressClass} > span {
+        display: block;
+        width: var(--codex-bulk-move-progress, 0%);
+        height: 100%;
+        border-radius: inherit;
+        background: #10a37f;
+        transition: width 160ms ease;
+      }
       .codex-archive-delete-all {
         border: 1px solid #ef4444;
         border-radius: 7px;
@@ -327,6 +418,17 @@
         cursor: pointer;
         pointer-events: auto;
         -webkit-app-region: no-drag;
+      }
+      .codex-bulk-export-trigger,
+      .${bulkMoveTriggerClass} {
+        margin-left: 4px;
+      }
+      .codex-bulk-export-trigger:hover,
+      .codex-bulk-export-trigger:focus-visible,
+      .${bulkMoveTriggerClass}:hover,
+      .${bulkMoveTriggerClass}:focus-visible {
+        background: rgba(255,255,255,.1);
+        outline: none;
       }
       .codex-plus-modal-overlay {
         position: fixed;
@@ -556,6 +658,7 @@
       forcePluginInstall: true,
       sessionDelete: true,
       markdownExport: true,
+      bulkExport: true,
       projectMove: true,
       conversationTimeline: true,
       zedRemoteOpen: true,
@@ -584,6 +687,8 @@
       clearThreadScrollRestoreLock();
       bindThreadScrollListener(null);
     }
+    if (key === "bulkExport" && !value) setBulkExportMode(false);
+    if (key === "projectMove" && !value) setBulkMoveMode(false);
     renderCodexPlusMenu();
     scan();
   }
@@ -594,6 +699,12 @@
       button.dataset.enabled = String(!!codexPlusSettings()[key]);
     });
     renderCodexModelCompatibilityWarning();
+    document.querySelectorAll("[data-codex-bulk-export-toggle]").forEach((button) => {
+      button.hidden = !codexPlusSettings().bulkExport;
+    });
+    document.querySelectorAll("[data-codex-bulk-move-toggle]").forEach((button) => {
+      button.hidden = !codexPlusSettings().projectMove;
+    });
   }
 
   let codexPlusBackendSettings = { providerSyncEnabled: false };
@@ -644,15 +755,15 @@
     if (repair) repair.hidden = status === "ok" || status === "checking";
   }
 
-  function withBackendTimeout(request) {
+  function withTimeout(request, timeoutMs, timeoutResult) {
     return Promise.race([
       request,
-      new Promise((resolve) => setTimeout(() => resolve({ status: "failed", message: "后端已断开" }), 2000)),
+      new Promise((resolve) => setTimeout(() => resolve(timeoutResult), timeoutMs)),
     ]);
   }
 
   async function checkBackendStatus() {
-    codexPlusBackendStatus = await withBackendTimeout(postJson("/backend/status", {}));
+    codexPlusBackendStatus = await postJson("/backend/status", {});
     renderBackendStatus();
   }
 
@@ -665,6 +776,7 @@
       codexPlusBackendStatus = { status: "failed", message: "后端修复失败" };
     }
     renderBackendStatus();
+    if (codexPlusBackendStatus.status === "ok") setTimeout(checkBackendStatus, 500);
   }
 
   function scheduleBackendHeartbeat() {
@@ -831,6 +943,10 @@
             <div class="codex-plus-row">
               <div><div class="codex-plus-row-title">Markdown 导出</div><div class="codex-plus-row-description">在会话列表显示导出按钮，按本地 rollout 导出带时间戳的 Markdown。</div></div>
               <button type="button" class="codex-plus-toggle" data-codex-plus-setting="markdownExport"><span></span></button>
+            </div>
+            <div class="codex-plus-row">
+              <div><div class="codex-plus-row-title">批量导出 ZIP</div><div class="codex-plus-row-description">在会话列表选择多个会话，一次导出为 ZIP。</div></div>
+              <button type="button" class="codex-plus-toggle" data-codex-plus-setting="bulkExport"><span></span></button>
             </div>
             <div class="codex-plus-row">
               <div><div class="codex-plus-row-title">会话项目移动</div><div class="codex-plus-row-description">在会话列表悬停显示移动按钮，可移动到普通对话或其他本地项目。</div></div>
@@ -1119,6 +1235,30 @@
     const nativeButtonClass = insertionPoint?.nativeButtonClass || "codex-plus-trigger";
     configureCodexPlusTrigger(menu, trigger, nativeButtonClass);
     menu.appendChild(trigger);
+    const bulkExportButton = document.createElement("button");
+    bulkExportButton.type = "button";
+    bulkExportButton.textContent = "批量导出";
+    bulkExportButton.className = `${nativeButtonClass} codex-bulk-export-trigger`.trim();
+    bulkExportButton.dataset.codexBulkExportToggle = "true";
+    bulkExportButton.hidden = !codexPlusSettings().bulkExport;
+    bulkExportButton.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      toggleBulkExportMode();
+    }, true);
+    menu.appendChild(bulkExportButton);
+    const bulkMoveButton = document.createElement("button");
+    bulkMoveButton.type = "button";
+    bulkMoveButton.textContent = "批量移动";
+    bulkMoveButton.className = `${nativeButtonClass} ${bulkMoveTriggerClass}`.trim();
+    bulkMoveButton.dataset.codexBulkMoveToggle = "true";
+    bulkMoveButton.hidden = !codexPlusSettings().projectMove;
+    bulkMoveButton.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      toggleBulkMoveMode();
+    }, true);
+    menu.appendChild(bulkMoveButton);
     if (insertionPoint) {
       menu.className = "";
       const safeBefore = insertionPoint.before?.parentElement === insertionPoint.parent ? insertionPoint.before : null;
@@ -1150,6 +1290,8 @@
   function spoofChatGPTAuthMethod(element) {
     const auth = authContextValueFrom(element);
     if (!auth || auth.authMethod === "chatgpt") return false;
+    // 注入规避：插件入口会在 React 状态传播完成前同步读取 authMethod。
+    auth.authMethod = "chatgpt";
     auth.setAuthMethod("chatgpt");
     return true;
   }
@@ -1174,22 +1316,38 @@
     if (!codexPlusSettings().pluginEntryUnlock) return;
     const pluginButton = pluginEntryButton();
     if (!pluginButton) return;
-    spoofChatGPTAuthMethod(pluginButton);
-    pluginButton.disabled = false;
-    pluginButton.removeAttribute("disabled");
+    unblockButtonElement(pluginButton);
     pluginButton.style.display = "";
     pluginButton.querySelectorAll("*").forEach((node) => {
+      const looksDisabled = node.style.display === "none" ||
+        node.hasAttribute("aria-disabled") ||
+        node.classList?.contains("disabled") ||
+        node.classList?.contains("opacity-50") ||
+        node.classList?.contains("cursor-not-allowed") ||
+        node.classList?.contains("pointer-events-none");
+      if (!looksDisabled) return;
       node.style.display = "";
+      node.removeAttribute("aria-disabled");
+      node.classList?.remove("disabled", "opacity-50", "cursor-not-allowed", "pointer-events-none");
+      node.style.removeProperty("pointer-events");
+      node.style.removeProperty("opacity");
     });
     labelUnlockedPluginEntry(pluginButton);
-    const reactPropsKey = Object.keys(pluginButton).find((key) => key.startsWith("__reactProps"));
-    if (reactPropsKey) {
-      pluginButton[reactPropsKey].disabled = false;
-    }
-    if (pluginButton.dataset.codexPluginEnabled === "true") return;
+    const pluginEntryHandlerVersion = "activation-v2";
+    if (pluginButton.dataset.codexPluginEnabledVersion === pluginEntryHandlerVersion) return;
     pluginButton.dataset.codexPluginEnabled = "true";
+    pluginButton.dataset.codexPluginEnabledVersion = pluginEntryHandlerVersion;
+    // 捕获阶段先于 Codex 自身激活处理器执行，确保入口点击时上下文已切到 chatgpt。
+    ["pointerdown", "mousedown", "touchstart"].forEach((eventName) => {
+      pluginButton.addEventListener(eventName, () => {
+        spoofChatGPTAuthMethod(pluginButton);
+      }, true);
+    });
     pluginButton.addEventListener("click", () => {
       spoofChatGPTAuthMethod(pluginButton);
+    }, true);
+    pluginButton.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " " || event.key === "Spacebar") spoofChatGPTAuthMethod(pluginButton);
     }, true);
   }
 
@@ -2040,10 +2198,41 @@
   }
 
   async function postJson(path, payload) {
-    if (!window.__codexSessionDeleteBridge) {
-      return { status: "failed", message: "桥接不可用，请重启启动器" };
+    const bridgeTimeoutMs = path === "/backend/status" || path === "/backend/repair" ? 1800 : 30000;
+    const bridgeRequest = window.__codexSessionDeleteBridge
+      ? window.__codexSessionDeleteBridge(path, payload, bridgeTimeoutMs)
+      : Promise.resolve({ status: "failed", message: "桥接不可用，请重启启动器" });
+    if (path !== "/backend/status" && path !== "/backend/repair") {
+      return await bridgeRequest;
     }
-    return await window.__codexSessionDeleteBridge(path, payload);
+    const bridgeResult = await withTimeout(bridgeRequest, bridgeTimeoutMs + 300, { status: "failed", message: "后端已断开" });
+    if (bridgeResult?.status === "ok") return bridgeResult;
+    try {
+      return await postHelperJson(path, payload, 5000);
+    } catch (_) {
+      return bridgeResult || { status: "failed", message: "后端已断开" };
+    }
+  }
+
+  async function postHelperJson(path, payload, timeoutMs = 5000) {
+    const response = await helperFetch(path, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload || {}),
+    }, timeoutMs);
+    return await response.json();
+  }
+
+  async function helperFetch(path, options, timeoutMs) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const response = await fetch(`${helperBase}${path}`, { ...options, signal: controller.signal });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      return response;
+    } finally {
+      clearTimeout(timer);
+    }
   }
 
   let codexModelCatalog = { status: "loading", model: "", default_model: "", model_provider: "", provider_name: "", models: [], sources: [], responses_api: { status: "unknown", message: "" } };
@@ -2358,6 +2547,22 @@
       throw new Error("导出结果不完整");
     }
     const blob = new Blob([markdown], { type: "text/markdown;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = filename;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  function downloadZip(filename, zipBase64) {
+    if (!filename || typeof zipBase64 !== "string") {
+      throw new Error("批量导出结果不完整");
+    }
+    const bytes = Uint8Array.from(atob(zipBase64), (char) => char.charCodeAt(0));
+    const blob = new Blob([bytes], { type: "application/zip" });
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     anchor.href = url;
@@ -3167,10 +3372,16 @@
 
   async function moveSessionToProjectless(ref) {
     if (!ref.session_id) throw new Error("未找到会话 ID");
-    await setProjectlessThreadIds(ref, "add");
-    await clearThreadWorkspaceHints(ref);
-    const sortKey = await postJson("/thread-sort-key", ref).catch(() => ({}));
-    return { status: "moved", session_id: ref.session_id, updated_at: sortKey?.updated_at, updated_at_ms: sortKey?.updated_at_ms, created_at_ms: sortKey?.created_at_ms };
+    const result = await postJson("/move-thread-projectless", ref);
+    if (result.status !== "moved") throw new Error(result.message || "移动到普通对话失败");
+    try {
+      await setProjectlessThreadIds(ref, "add");
+      await clearThreadWorkspaceHints(ref);
+    } catch (error) {
+      window.__codexProjectlessStateSyncFailures = window.__codexProjectlessStateSyncFailures || [];
+      window.__codexProjectlessStateSyncFailures.push(String(error?.stack || error));
+    }
+    return result;
   }
 
   function isNativeProjectTarget(target) {
@@ -3205,6 +3416,103 @@
     }
     document.body.appendChild(toast);
     setTimeout(() => toast.remove(), 10000);
+  }
+
+  const codexBulkExportSelection = new Map();
+  let codexBulkExportMode = false;
+
+  function selectedBulkExportSessions() {
+    return Array.from(codexBulkExportSelection.values());
+  }
+
+  function setBulkExportMode(enabled) {
+    codexBulkExportMode = !!enabled && !!codexPlusSettings().bulkExport;
+    if (!codexBulkExportMode) codexBulkExportSelection.clear();
+    sessionRows(true).forEach((row) => installBulkExportSelectionControl(row));
+    renderBulkExportBar();
+  }
+
+  function toggleBulkExportMode() {
+    setBulkExportMode(!codexBulkExportMode);
+  }
+
+  function updateBulkExportRowSelection(row, ref, selected) {
+    if (selected) {
+      codexBulkExportSelection.set(ref.session_id, ref);
+    } else {
+      codexBulkExportSelection.delete(ref.session_id);
+    }
+    row.dataset.codexBulkExportSelected = String(!!selected);
+    const checkbox = row.querySelector(`.${bulkExportCheckboxClass}`);
+    if (checkbox) checkbox.checked = !!selected;
+    renderBulkExportBar();
+  }
+
+  function installBulkExportSelectionControl(row) {
+    const existing = row.querySelector(`.${bulkExportCheckboxClass}`);
+    if (!codexBulkExportMode || !codexPlusSettings().bulkExport) {
+      existing?.remove();
+      row.dataset.codexBulkExportMode = "false";
+      row.dataset.codexBulkExportSelected = "false";
+      return;
+    }
+    const ref = sessionRefFromRow(row);
+    if (!ref.session_id) return;
+    row.dataset.codexBulkExportMode = "true";
+    row.dataset.codexBulkExportSelected = String(codexBulkExportSelection.has(ref.session_id));
+    const checkbox = existing || document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.className = bulkExportCheckboxClass;
+    checkbox.setAttribute("aria-label", `选择导出：${ref.title || ref.session_id}`);
+    checkbox.checked = codexBulkExportSelection.has(ref.session_id);
+    checkbox.addEventListener("click", (event) => {
+      event.stopPropagation();
+      event.stopImmediatePropagation?.();
+      updateBulkExportRowSelection(row, ref, checkbox.checked);
+    }, true);
+    if (!existing) row.appendChild(checkbox);
+  }
+
+  function renderBulkExportBar() {
+    document.querySelectorAll(`.${bulkExportBarClass}`).forEach((node) => node.remove());
+    if (!codexBulkExportMode) return;
+    const selectedCount = selectedBulkExportSessions().length;
+    const bar = document.createElement("div");
+    bar.className = bulkExportBarClass;
+    bar.innerHTML = `
+      <span>已选择 ${selectedCount} 个会话</span>
+      <button type="button" data-codex-bulk-export-submit ${selectedCount ? "" : "disabled"}>导出 ZIP</button>
+      <button type="button" data-codex-bulk-export-cancel>取消</button>
+    `;
+    bar.addEventListener("click", (event) => {
+      const target = event.target instanceof Element ? event.target : event.target?.parentElement;
+      event.preventDefault();
+      event.stopPropagation();
+      if (target?.closest("[data-codex-bulk-export-cancel]")) {
+        setBulkExportMode(false);
+        return;
+      }
+      if (target?.closest("[data-codex-bulk-export-submit]")) {
+        exportSelectedSessionsZip();
+      }
+    }, true);
+    document.body.appendChild(bar);
+  }
+
+  async function exportSelectedSessionsZip() {
+    const sessions = selectedBulkExportSessions();
+    if (!sessions.length) {
+      showToast("请选择要导出的会话", null);
+      return;
+    }
+    const result = await postJson("/export-markdown-zip", { sessions });
+    if (result.status === "exported" && result.filename && result.zip_base64) {
+      downloadZip(result.filename, result.zip_base64);
+      showToast(result.message || "批量导出成功", null);
+      setBulkExportMode(false);
+      return;
+    }
+    showToast(result.message || "批量导出失败", null);
   }
 
   function escapeHtml(value) {
@@ -3347,6 +3655,212 @@
   function sortStateFromMoveResult(result, ref, row) {
     const trustedSortMs = timestampMsFromPayload(result);
     return { sortMs: trustedSortMs || rowSortMs(row, ref), sortMsTrusted: !!trustedSortMs };
+  }
+
+  function sleep(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  function waitForBulkMovePaint() {
+    return new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+  }
+
+  const codexBulkMoveSelection = new Map();
+  let codexBulkMoveMode = false;
+  let codexBulkMoveInFlight = false;
+  let codexBulkMoveProgress = { total: 0, done: 0, moved: 0, failed: 0 };
+
+  function selectedBulkMoveSessions() {
+    return Array.from(codexBulkMoveSelection.values());
+  }
+
+  function setBulkMoveMode(enabled) {
+    codexBulkMoveMode = !!enabled && !!codexPlusSettings().projectMove;
+    if (!codexBulkMoveMode) codexBulkMoveSelection.clear();
+    sessionRows(true).forEach((row) => installBulkMoveSelectionControl(row));
+    renderBulkMoveBar();
+  }
+
+  function toggleBulkMoveMode() {
+    setBulkMoveMode(!codexBulkMoveMode);
+  }
+
+  function updateBulkMoveRowSelection(row, ref, selected) {
+    if (selected) {
+      codexBulkMoveSelection.set(ref.session_id, { ref, row });
+    } else {
+      codexBulkMoveSelection.delete(ref.session_id);
+    }
+    row.dataset.codexBulkMoveSelected = String(!!selected);
+    const checkbox = row.querySelector(`.${bulkMoveCheckboxClass}`);
+    if (checkbox) checkbox.checked = !!selected;
+    renderBulkMoveBar();
+  }
+
+  function installBulkMoveSelectionControl(row) {
+    const existing = row.querySelector(`.${bulkMoveCheckboxClass}`);
+    if (!codexBulkMoveMode || !codexPlusSettings().projectMove) {
+      existing?.remove();
+      row.dataset.codexBulkMoveMode = "false";
+      row.dataset.codexBulkMoveSelected = "false";
+      return;
+    }
+    const ref = sessionRefFromRow(row);
+    if (!ref.session_id) return;
+    row.dataset.codexBulkMoveMode = "true";
+    row.dataset.codexBulkMoveSelected = String(codexBulkMoveSelection.has(ref.session_id));
+    const checkbox = existing || document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.className = bulkMoveCheckboxClass;
+    checkbox.setAttribute("aria-label", `选择移动：${ref.title || ref.session_id}`);
+    checkbox.checked = codexBulkMoveSelection.has(ref.session_id);
+    checkbox.disabled = codexBulkMoveInFlight;
+    checkbox.addEventListener("click", (event) => {
+      event.stopPropagation();
+      event.stopImmediatePropagation?.();
+      updateBulkMoveRowSelection(row, ref, checkbox.checked);
+    }, true);
+    if (!existing) row.appendChild(checkbox);
+  }
+
+  function renderBulkMoveBar() {
+    document.querySelectorAll(`.${bulkMoveBarClass}`).forEach((node) => node.remove());
+    if (!codexBulkMoveMode) return;
+    const selectedCount = selectedBulkMoveSessions().length;
+    const processed = Math.min(codexBulkMoveProgress.done, codexBulkMoveProgress.total);
+    const percent = codexBulkMoveProgress.total ? Math.round((processed / codexBulkMoveProgress.total) * 100) : 0;
+    const label = codexBulkMoveInFlight
+      ? `正在移动 ${processed}/${codexBulkMoveProgress.total} · 成功 ${codexBulkMoveProgress.moved} · 失败 ${codexBulkMoveProgress.failed}`
+      : `已选择 ${selectedCount} 个会话`;
+    const bar = document.createElement("div");
+    bar.className = bulkMoveBarClass;
+    bar.innerHTML = `
+      <span>${escapeHtml(label)}</span>
+      <button type="button" data-codex-bulk-move-submit ${selectedCount && !codexBulkMoveInFlight ? "" : "disabled"}>移动到...</button>
+      <button type="button" data-codex-bulk-move-cancel ${codexBulkMoveInFlight ? "disabled" : ""}>取消</button>
+      ${codexBulkMoveInFlight ? `<div class="${bulkMoveProgressClass}" data-codex-bulk-move-progress style="--codex-bulk-move-progress: ${percent}%"><span data-codex-bulk-move-progress-fill></span></div>` : ""}
+    `;
+    bar.addEventListener("click", (event) => {
+      const target = event.target instanceof Element ? event.target : event.target?.parentElement;
+      event.preventDefault();
+      event.stopPropagation();
+      if (target?.closest("[data-codex-bulk-move-cancel]")) {
+        if (!codexBulkMoveInFlight) setBulkMoveMode(false);
+        return;
+      }
+      if (target?.closest("[data-codex-bulk-move-submit]")) {
+        if (!codexBulkMoveInFlight) openBulkProjectMoveMenu();
+      }
+    }, true);
+    document.body.appendChild(bar);
+  }
+
+  async function moveSelectedSessionsToTarget(target) {
+    const sessions = selectedBulkMoveSessions().filter((session) => session?.ref?.session_id);
+    if (!sessions.length) {
+      showToast("请选择要移动的会话", null);
+      return;
+    }
+    codexBulkMoveInFlight = true;
+    codexBulkMoveProgress = { total: sessions.length, done: 0, moved: 0, failed: 0 };
+    const progressStartedAt = Date.now();
+    sessionRows(true).forEach((row) => installBulkMoveSelectionControl(row));
+    renderBulkMoveBar();
+    await waitForBulkMovePaint();
+    let moved = 0;
+    const failures = [];
+    for (const session of sessions) {
+      try {
+        const result = target.kind === "projectless"
+          ? await moveSessionToProjectless(session.ref)
+          : await moveSessionToProject(session.ref, target);
+        const sortState = sortStateFromMoveResult(result, session.ref, session.row);
+        const movedTarget = { ...target, ...sortState };
+        saveProjectMoveProjection(session.ref, movedTarget, sortState.sortMs);
+        if (target.kind === "projectless") moveRowToChats(session.row, movedTarget);
+        moved += 1;
+      } catch (error) {
+        failures.push(`${session.ref.title || session.ref.session_id}: ${error?.message || error}`);
+      }
+      codexBulkMoveProgress = { ...codexBulkMoveProgress, done: moved + failures.length, moved, failed: failures.length };
+      renderBulkMoveBar();
+      await waitForBulkMovePaint();
+    }
+    await sleep(Math.max(0, bulkMoveProgressMinVisibleMs - (Date.now() - progressStartedAt)));
+    codexBulkMoveInFlight = false;
+    refreshAfterProjectMove();
+    if (failures.length === 0) {
+      showToast(`已移动 ${moved} 个会话到“${target.label}”`, null);
+      setBulkMoveMode(false);
+      return;
+    }
+    renderBulkMoveBar();
+    showToast(`已移动 ${moved} 个会话，失败 ${failures.length} 个`, null);
+    window.__codexBulkMoveFailures = failures;
+  }
+
+  function openBulkProjectMoveMenu() {
+    const sessions = selectedBulkMoveSessions();
+    if (!sessions.length) {
+      showToast("请选择要移动的会话", null);
+      return;
+    }
+    document.querySelectorAll(`.${projectMoveOverlayClass}`).forEach((node) => node.remove());
+    const overlay = document.createElement("div");
+    overlay.className = projectMoveOverlayClass;
+    overlay.innerHTML = `
+      <div class="codex-project-move-panel" role="dialog" aria-modal="true" aria-label="批量移动对话">
+        <div class="codex-project-move-header">
+          <div class="codex-project-move-title">移动 ${sessions.length} 个会话</div>
+        </div>
+        <div class="codex-project-move-list"><div class="codex-project-move-empty">加载项目中...</div></div>
+      </div>
+    `;
+    const panel = overlay.querySelector(".codex-project-move-panel");
+    const panelWidth = Math.min(360, Math.max(240, window.innerWidth - 32));
+    panel.style.left = `${Math.max(16, (window.innerWidth - panelWidth) / 2)}px`;
+    panel.style.top = `${Math.max(16, (window.innerHeight - Math.min(520, window.innerHeight - 32)) / 2)}px`;
+    const close = () => overlay.remove();
+    overlay.addEventListener("click", (clickEvent) => {
+      if (clickEvent.target === overlay) close();
+    }, true);
+    overlay.addEventListener("keydown", (keyEvent) => {
+      if (keyEvent.key === "Escape") {
+        keyEvent.preventDefault();
+        close();
+      }
+    }, true);
+    document.body.appendChild(overlay);
+    try {
+      const targets = projectMoveTargets();
+      const list = overlay.querySelector(".codex-project-move-list");
+      if (!list) return;
+      list.innerHTML = "";
+      if (targets.length === 0) {
+        list.innerHTML = `<div class="codex-project-move-empty">没有可用目标</div>`;
+        return;
+      }
+      for (const target of targets) {
+        const item = document.createElement("button");
+        item.type = "button";
+        item.className = "codex-project-move-item";
+        item.innerHTML = `
+          <div class="codex-project-move-item-title">${escapeHtml(target.label)}</div>
+          <div class="codex-project-move-item-path">${escapeHtml(target.description)}</div>
+        `;
+        item.addEventListener("click", async (selectEvent) => {
+          selectEvent.preventDefault();
+          selectEvent.stopPropagation();
+          close();
+          await moveSelectedSessionsToTarget(target);
+        }, true);
+        list.appendChild(item);
+      }
+      list.querySelector("button")?.focus();
+    } catch (error) {
+      close();
+      showToast(`加载项目失败：${error?.message || error}`, null);
+    }
   }
 
   function finishProjectMove(row, button, ref, target, message) {
@@ -3620,7 +4134,7 @@
   }
 
   function isArchiveTitleText(value) {
-    return value === "已归档对话" || value === "Archived conversations";
+    return archiveTitleTexts.has(value);
   }
 
   function archiveTitleContainer() {
@@ -4430,7 +4944,11 @@
     enablePluginEntry();
     unblockPluginInstallButtons();
     patchCodexModelWhitelist();
-    sessionRows().forEach(tryAttachButton);
+    sessionRows().forEach((row) => {
+      tryAttachButton(row);
+      installBulkExportSelectionControl(row);
+      installBulkMoveSelectionControl(row);
+    });
     updateDeleteButtonOffsets();
     scheduleProjectMoveProjection();
     scheduleChatsSortCorrection();
@@ -4463,11 +4981,17 @@
       `.${projectMoveOverlayClass}`,
       `.${timelineClass}`,
       ".codex-conversation-timeline",
+      `.${bulkExportBarClass}`,
+      `.${bulkExportCheckboxClass}`,
+      `.${bulkMoveBarClass}`,
+      `.${bulkMoveCheckboxClass}`,
       ".codex-zed-remote-button",
       ".codex-zed-remote-toast",
       "#codex-plus-menu",
     ].join(", "));
   }
+
+  const archiveTitleTexts = new Set(["已归档对话", "Archived conversations"]);
 
   const scanRelevantSelector = [
     selectors.sidebarThread,
@@ -4486,8 +5010,15 @@
     selectors.appHeader,
     "header",
     selectors.archiveNav,
+    selectors.pluginNavButton,
     selectors.disabledInstallButton,
   ].join(", ");
+
+  function nodeLooksLikeArchivePageContent(node) {
+    if (node.nodeType !== 1) return false;
+    const text = (node.textContent || "").trim();
+    return text.includes("取消归档") || archiveTitleTexts.has(text);
+  }
 
   function nodeSelfOrAncestorMatchesScanRelevance(node) {
     if (node.nodeType !== 1) return false;
@@ -4503,7 +5034,7 @@
   function isScanRelevantNode(node) {
     if (node.nodeType !== 1) return false;
     if (isExtensionUiNode(node)) return false;
-    return nodeSelfOrAncestorMatchesScanRelevance(node) || !!node.querySelector?.(scanRelevantSelector) || nodeLooksLikeTimelineQuestion(node);
+    return nodeSelfOrAncestorMatchesScanRelevance(node) || !!node.querySelector?.(scanRelevantSelector) || nodeLooksLikeArchivePageContent(node) || nodeLooksLikeTimelineQuestion(node);
   }
 
   function isChatContentMutation(mutation) {
@@ -4547,6 +5078,18 @@
     window.__codexSessionDeleteScanTimer = setTimeout(runScheduledScan, 200);
   }
 
+  function runForegroundResumeScans() {
+    if (document.visibilityState === "hidden") return;
+    (window.__codexPlusForegroundResumeScanTimers || []).forEach(clearTimeout);
+    window.__codexPlusForegroundResumeScanTimers = [];
+    scan();
+    window.__codexPlusForegroundResumeScanTimers = [250, 1000, 2500].map((delay) => {
+      return setTimeout(() => {
+        if (document.visibilityState !== "hidden") scan();
+      }, delay);
+    });
+  }
+
   scan();
   window.__codexProjectMoveApplyProjection = applyProjectMoveProjection;
   window.__codexProjectMoveReadProjection = readProjectMoveProjection;
@@ -4562,6 +5105,12 @@
     });
   };
   window.addEventListener("resize", window.__codexPlusResizeHandler);
+  window.removeEventListener("visibilitychange", window.__codexPlusVisibilityResumeHandler);
+  window.__codexPlusVisibilityResumeHandler = runForegroundResumeScans;
+  window.addEventListener("visibilitychange", window.__codexPlusVisibilityResumeHandler);
+  window.removeEventListener("focus", window.__codexPlusFocusResumeHandler);
+  window.__codexPlusFocusResumeHandler = runForegroundResumeScans;
+  window.addEventListener("focus", window.__codexPlusFocusResumeHandler);
   window.__codexSessionDeleteObserver?.disconnect();
   window.__codexSessionDeleteObserver = new MutationObserver(scheduleScan);
   window.__codexSessionDeleteObserver.observe(document.body || document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ["aria-current"] });

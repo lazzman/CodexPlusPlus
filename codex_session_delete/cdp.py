@@ -5,6 +5,7 @@ import json
 import threading
 import webbrowser
 from dataclasses import dataclass, field
+from datetime import datetime
 from importlib import resources
 from pathlib import Path
 from typing import Callable
@@ -139,18 +140,30 @@ def build_bridge_script(binding_name: str) -> str:
     const callback = window.__codexSessionDeleteCallbacks.get(id);
     if (!callback) return;
     window.__codexSessionDeleteCallbacks.delete(id);
+    if (callback.timeout) clearTimeout(callback.timeout);
     callback.resolve(result);
   }};
   window.__codexSessionDeleteReject = (id, message) => {{
     const callback = window.__codexSessionDeleteCallbacks.get(id);
     if (!callback) return;
     window.__codexSessionDeleteCallbacks.delete(id);
+    if (callback.timeout) clearTimeout(callback.timeout);
     callback.resolve({{ status: "failed", message }});
   }};
-  window.__codexSessionDeleteBridge = (path, payload) => new Promise((resolve) => {{
+  window.__codexSessionDeleteBridge = (path, payload, timeoutMs = 30000) => new Promise((resolve) => {{
     const id = String(++window.__codexSessionDeleteSeq);
-    window.__codexSessionDeleteCallbacks.set(id, {{ resolve }});
-    window.{binding_name}(JSON.stringify({{ id, path, payload }}));
+    const timeout = timeoutMs > 0 ? setTimeout(() => {{
+      window.__codexSessionDeleteCallbacks.delete(id);
+      resolve({{ status: "failed", message: "\\u540e\\u7aef\\u8bf7\\u6c42\\u8d85\\u65f6" }});
+    }}, timeoutMs) : null;
+    window.__codexSessionDeleteCallbacks.set(id, {{ resolve, timeout }});
+    try {{
+      window.{binding_name}(JSON.stringify({{ id, path, payload }}));
+    }} catch (error) {{
+      window.__codexSessionDeleteCallbacks.delete(id);
+      if (timeout) clearTimeout(timeout);
+      resolve({{ status: "failed", message: String(error?.message || error) }});
+    }}
   }});
 }})();
 """
@@ -270,7 +283,8 @@ def _bridge_loop(ws: websocket.WebSocket, handler: BridgeHandler) -> None:
             message = json.loads(ws.recv())
         except websocket.WebSocketTimeoutException:
             continue
-        except Exception:
+        except Exception as exc:
+            _log_bridge_error(f"bridge loop stopped: {exc}")
             return
         if message.get("method") != "Runtime.bindingCalled":
             continue
@@ -284,6 +298,16 @@ def _bridge_loop(ws: websocket.WebSocket, handler: BridgeHandler) -> None:
             request_id = str(locals().get("payload", {}).get("id", ""))
             if request_id:
                 _reject_bridge(ws, request_id, str(exc))
+
+
+def _log_bridge_error(message: str) -> None:
+    try:
+        path = Path.home() / ".codex-session-delete" / "bridge.log"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("a", encoding="utf-8") as handle:
+            handle.write(f"[{datetime.now().isoformat(timespec='seconds')}] {message}\n")
+    except Exception:
+        pass
 
 
 def _resolve_bridge(ws: websocket.WebSocket, request_id: str, result: dict[str, object]) -> None:

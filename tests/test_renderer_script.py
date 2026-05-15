@@ -316,7 +316,7 @@ def test_renderer_script_debounces_mutation_observer_scan():
     assert "setTimeout(() => runScanStep(scanDeferred), 50)" not in text
     assert "codexSessionDeleteAttachButtonFailures" in text
     assert "tryAttachButton" in text
-    assert "sessionRows().forEach(tryAttachButton)" in text
+    assert "tryAttachButton(row)" in text
     assert "sessionRows().forEach(attachButton)" not in text
     assert "new MutationObserver(scheduleScan)" in text
     assert "new MutationObserver(scan)" not in text
@@ -358,6 +358,41 @@ def test_renderer_script_chat_filter_keeps_relevant_node_escape_hatch():
     assert "selectors.disabledInstallButton" in relevant_code
     assert "button[aria-label=\"已归档对话\"]" in text
     assert "button:disabled.w-full.justify-center" in text
+
+
+def test_renderer_script_supports_bulk_export_and_bulk_move_contracts():
+    text = Path("codex_session_delete/inject/renderer-inject.js").read_text(encoding="utf-8")
+
+    assert "bulkExport: true" in text
+    assert "批量导出 ZIP" in text
+    assert "codex-bulk-export-checkbox" in text
+    assert "codex-bulk-export-bar" in text
+    assert "/export-markdown-zip" in text
+    assert "downloadZip(result.filename, result.zip_base64)" in text
+    assert "批量移动" in text
+    assert "codex-bulk-move-checkbox" in text
+    assert "codex-bulk-move-progress" in text
+    assert "/move-thread-projectless" in text
+    assert "window.__codexBulkMoveFailures" in text
+
+
+def test_renderer_script_backend_repair_uses_bridge_timeout_and_http_fallback():
+    text = Path("codex_session_delete/inject/renderer-inject.js").read_text(encoding="utf-8")
+
+    assert "window.__codexSessionDeleteBridge(path, payload, bridgeTimeoutMs)" in text
+    assert "path !== \"/backend/status\" && path !== \"/backend/repair\"" in text
+    assert "postHelperJson(path, payload, 5000)" in text
+    assert "helperFetch(path, options, timeoutMs)" in text
+    assert "后端已断开" in text
+
+
+def test_renderer_script_archive_scan_relevance_has_text_fallback():
+    text = Path("codex_session_delete/inject/renderer-inject.js").read_text(encoding="utf-8")
+
+    assert "function nodeLooksLikeArchivePageContent(node)" in text
+    assert "text.includes(\"取消归档\")" in text
+    assert "archiveTitleTexts.has(text)" in text
+    assert "nodeLooksLikeArchivePageContent(node)" in text[text.index("function isScanRelevantNode"):text.index("\n\n  function isChatContentMutation")]
     assert "[role=\"button\"][aria-disabled=\"true\"].cursor-not-allowed" in text
 
 
@@ -563,8 +598,9 @@ def test_renderer_script_includes_user_script_manager_ui_contract():
     assert "setInterval(checkBackendStatus, 5000)" in text
     assert "scheduleBackendHeartbeat();\n    loadUserScripts();" not in text
     assert "installCodexPlusMenu();\n    scheduleBackendHeartbeat();" in text
-    assert "withBackendTimeout" in text
-    assert "setTimeout(() => resolve({ status: \"failed\", message: \"后端已断开\" }), 2000)" in text
+    assert "withTimeout" in text
+    assert "postHelperJson" in text
+    assert "new Promise((resolve) => setTimeout(() => resolve(timeoutResult), timeoutMs))" in text
     assert "data-codex-backend-indicator" in text
     assert "codex-plus-backend-indicator" in text
     assert "/backend/status" in text

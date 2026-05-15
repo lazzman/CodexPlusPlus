@@ -123,6 +123,21 @@ base_url = "http://127.0.0.1:8080/v1"
     assert launcher.codex_config_proxy_bypass_hosts(config) == {"codex-manager.tailnet.local", "127.0.0.1"}
 
 
+def test_codex_config_proxy_bypass_hosts_respects_codex_home(monkeypatch, tmp_path):
+    codex_home = tmp_path / "profile"
+    codex_home.mkdir()
+    (codex_home / "config.toml").write_text(
+        """
+[model_providers.private]
+base_url = "https://private-provider.tailnet.local/v1"
+""",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("CODEX_HOME", str(codex_home))
+
+    assert launcher.codex_config_proxy_bypass_hosts() == {"private-provider.tailnet.local"}
+
+
 def test_launch_codex_macos_uses_open_command(monkeypatch, tmp_path):
     app = tmp_path / "Codex.app"
     (app / "Contents" / "MacOS").mkdir(parents=True)
@@ -214,7 +229,7 @@ def test_cli_launch_subcommand_keeps_helper_server_alive_after_injection(monkeyp
 def test_cli_launch_passes_proxy_flag(monkeypatch):
     calls = []
     monkeypatch.setattr(cli, "launch_and_inject", lambda *args: calls.append(args) or (FakeServer(), None))
-    monkeypatch.setattr(cli, "wait_for_shutdown", lambda server, proc: None)
+    monkeypatch.setattr(cli, "wait_for_shutdown", lambda server, proc, debug_port=9229: None)
 
     exit_code = cli.main(["launch", "--proxy"])
 
@@ -259,7 +274,7 @@ def test_launch_retries_injection_until_codex_page_is_ready(monkeypatch, tmp_pat
     monkeypatch.setattr(launcher, "resolve_codex_app_dir", lambda app_dir=None: tmp_path)
     monkeypatch.setattr(launcher, "start_helper", lambda *args, **kwargs: FakeServer())
     monkeypatch.setattr(launcher, "launch_codex_app", lambda *args: None)
-
+    monkeypatch.setattr(launcher, "helper_health_ok", lambda *args, **kwargs: False)
     def inject_after_retry(*args, **kwargs):
         attempts.append(args)
         if len(attempts) == 1:
@@ -268,6 +283,7 @@ def test_launch_retries_injection_until_codex_page_is_ready(monkeypatch, tmp_pat
 
     monkeypatch.setattr(launcher, "inject_file_into_all_pages", inject_after_retry)
     monkeypatch.setattr(launcher, "evaluate_user_scripts", lambda websocket_url, script: None)
+    monkeypatch.setattr(launcher, "start_bridge_watchdog", lambda *args, **kwargs: None)
     monkeypatch.setattr(launcher.time, "sleep", lambda seconds: None)
 
     server, proc = launcher.launch_and_inject(None, None, tmp_path / "backups", 9229, 57321)
@@ -393,9 +409,11 @@ def test_reload_user_scripts_drops_closed_page_targets(monkeypatch):
 
 def test_launch_and_inject_returns_windows_packaged_process_id(monkeypatch, tmp_path):
     monkeypatch.setattr(launcher, "resolve_codex_app_dir", lambda app_dir=None: tmp_path)
+    monkeypatch.setattr(launcher, "helper_health_ok", lambda *args, **kwargs: False)
     monkeypatch.setattr(launcher, "start_helper", lambda *args, **kwargs: FakeServer())
     monkeypatch.setattr(launcher, "launch_codex_app", lambda *args: 1234)
     monkeypatch.setattr(launcher, "inject_with_retry", lambda *args, **kwargs: {"result": {}})
+    monkeypatch.setattr(launcher, "start_bridge_watchdog", lambda *args, **kwargs: None)
 
     server, proc = launcher.launch_and_inject(None, None, tmp_path / "backups", 9229, 57321)
 
@@ -414,8 +432,10 @@ def test_shutdown_helper_leaves_attached_helper_running():
 def test_launch_and_inject_runs_provider_sync_before_launch_when_enabled(monkeypatch, tmp_path):
     events = []
     monkeypatch.setattr(launcher, "resolve_codex_app_dir", lambda app_dir=None: tmp_path)
+    monkeypatch.setattr(launcher, "helper_health_ok", lambda *args, **kwargs: False)
     monkeypatch.setattr(launcher, "start_helper", lambda *args, **kwargs: FakeServer())
     monkeypatch.setattr(launcher, "inject_with_retry", lambda *args, **kwargs: {"result": {}})
+    monkeypatch.setattr(launcher, "start_bridge_watchdog", lambda *args, **kwargs: None)
     monkeypatch.setattr(launcher, "backend_settings", lambda: type("Settings", (), {"provider_sync_enabled": True})())
     monkeypatch.setattr(launcher, "run_provider_sync", lambda: events.append("sync") or type("Result", (), {"status": "synced", "message": "ok"})())
     monkeypatch.setattr(launcher, "launch_codex_app", lambda *args: events.append("launch") or 1234)
@@ -428,8 +448,10 @@ def test_launch_and_inject_runs_provider_sync_before_launch_when_enabled(monkeyp
 def test_launch_and_inject_skips_provider_sync_when_disabled(monkeypatch, tmp_path):
     events = []
     monkeypatch.setattr(launcher, "resolve_codex_app_dir", lambda app_dir=None: tmp_path)
+    monkeypatch.setattr(launcher, "helper_health_ok", lambda *args, **kwargs: False)
     monkeypatch.setattr(launcher, "start_helper", lambda *args, **kwargs: FakeServer())
     monkeypatch.setattr(launcher, "inject_with_retry", lambda *args, **kwargs: {"result": {}})
+    monkeypatch.setattr(launcher, "start_bridge_watchdog", lambda *args, **kwargs: None)
     monkeypatch.setattr(launcher, "backend_settings", lambda: type("Settings", (), {"provider_sync_enabled": False})())
     monkeypatch.setattr(launcher, "run_provider_sync", lambda: (_ for _ in ()).throw(AssertionError("sync should not run")))
     monkeypatch.setattr(launcher, "launch_codex_app", lambda *args: events.append("launch") or 1234)
@@ -442,7 +464,7 @@ def test_launch_and_inject_skips_provider_sync_when_disabled(monkeypatch, tmp_pa
 def test_launch_and_inject_closes_helper_when_injection_fails(monkeypatch, tmp_path):
     server = FakeServer()
     monkeypatch.setattr(launcher, "resolve_codex_app_dir", lambda app_dir=None: tmp_path)
-    monkeypatch.setattr(launcher, "helper_health_ok", lambda port, host="127.0.0.1": False)
+    monkeypatch.setattr(launcher, "helper_health_ok", lambda *args, **kwargs: False)
     monkeypatch.setattr(launcher, "start_helper", lambda *args, **kwargs: server)
     monkeypatch.setattr(launcher, "launch_codex_app", lambda *args: 1234)
     monkeypatch.setattr(launcher, "inject_with_retry", lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("inject failed")))
@@ -461,9 +483,11 @@ def test_launch_uses_resolved_app_dir(monkeypatch, tmp_path):
     executable.parent.mkdir(parents=True)
     executable.write_text("#!/bin/sh\n", encoding="utf-8")
     monkeypatch.setattr(launcher, "resolve_codex_app_dir", lambda app_dir=None: mac_app)
+    monkeypatch.setattr(launcher, "helper_health_ok", lambda *args, **kwargs: False)
     monkeypatch.setattr(launcher, "start_helper", lambda *args, **kwargs: FakeServer())
     monkeypatch.setattr(launcher.subprocess, "run", lambda args, **kw: launched.append(args))
     monkeypatch.setattr(launcher, "inject_with_retry", lambda *args, **kwargs: {"result": {}})
+    monkeypatch.setattr(launcher, "start_bridge_watchdog", lambda *args, **kwargs: None)
 
     launcher.launch_and_inject(None, None, tmp_path / "backups", 9229, 57321)
 
@@ -561,6 +585,7 @@ def test_macos_codex_running_uses_process_name(monkeypatch):
         calls.append((args, kwargs))
         return type("Result", (), {"returncode": 0})()
 
+    monkeypatch.setattr(cli, "is_codex_cdp_page_available", lambda debug_port=9229: False)
     monkeypatch.setattr(cli.subprocess, "run", fake_run)
 
     assert cli.is_macos_codex_running() is True
@@ -734,3 +759,71 @@ def test_is_macos_codex_running_returns_false_when_pgrep_misses(monkeypatch):
     monkeypatch.setattr(cli.subprocess, "run", lambda *args, **kwargs: Result())
 
     assert cli.is_macos_codex_running() is False
+
+
+def test_start_or_attach_helper_reuses_healthy_helper(monkeypatch):
+    started = []
+    monkeypatch.setattr(launcher, "helper_health_ok", lambda port, host="127.0.0.1": True)
+    monkeypatch.setattr(launcher, "start_helper", lambda *args, **kwargs: started.append((args, kwargs)) or FakeServer())
+
+    server = launcher.start_or_attach_helper(object(), port=57321)
+
+    assert isinstance(server, launcher.AttachedHelperServer)
+    assert server.port == 57321
+    assert started == []
+
+
+def test_shutdown_helper_ignores_attached_helper():
+    launcher.shutdown_helper(launcher.AttachedHelperServer(57321))
+
+
+def test_check_and_reinject_bridge_reinjects_missing_bridge(monkeypatch, tmp_path):
+    class FakeUserScripts:
+        def build_enabled_bundle(self):
+            return ""
+
+        def inventory(self):
+            return {}
+
+    runtime = launcher.CodexPlusRuntime("ws://page", FakeUserScripts(), 9229)
+    runtime.add_websocket_url("ws://page")
+    reinjected = []
+    monkeypatch.setattr(launcher, "evaluate_script", lambda websocket_url, script: {"result": {"result": {"value": False}}})
+    monkeypatch.setattr(launcher, "inject_with_retry", lambda *args, **kwargs: reinjected.append(args) or {"result": {}})
+
+    did_reinject = launcher.check_and_reinject_bridge(
+        9229,
+        tmp_path / "renderer.js",
+        57321,
+        object(),
+        object(),
+        runtime,
+    )
+
+    assert did_reinject is True
+    assert len(reinjected) == 1
+
+
+def test_check_and_reinject_bridge_skips_when_bridge_exists(monkeypatch, tmp_path):
+    class FakeUserScripts:
+        def build_enabled_bundle(self):
+            return ""
+
+        def inventory(self):
+            return {}
+
+    runtime = launcher.CodexPlusRuntime("ws://page", FakeUserScripts(), 9229)
+    runtime.add_websocket_url("ws://page")
+    monkeypatch.setattr(launcher, "evaluate_script", lambda websocket_url, script: {"result": {"result": {"value": True}}})
+    monkeypatch.setattr(launcher, "inject_with_retry", lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("should not reinject")))
+
+    did_reinject = launcher.check_and_reinject_bridge(
+        9229,
+        tmp_path / "renderer.js",
+        57321,
+        object(),
+        object(),
+        runtime,
+    )
+
+    assert did_reinject is False

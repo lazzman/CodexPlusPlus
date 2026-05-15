@@ -6,7 +6,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from importlib import resources
 
 from codex_session_delete.helper_server import HelperServer
-from codex_session_delete.models import DeleteResult, DeleteStatus, ExportResult, ExportStatus, SessionRef
+from codex_session_delete.models import BulkExportResult, DeleteResult, DeleteStatus, ExportResult, ExportStatus, SessionRef
 
 
 class FakeDeleteService:
@@ -30,6 +30,9 @@ class FakeDeleteService:
     def move_thread_workspace(self, session: SessionRef, target_cwd: str):
         return {"status": "moved", "session_id": session.session_id, "target_cwd": target_cwd}
 
+    def move_thread_projectless(self, session: SessionRef):
+        return {"status": "moved", "session_id": session.session_id, "target_cwd": ""}
+
     def thread_sort_key(self, session: SessionRef):
         return {"status": "ok", "session_id": session.session_id, "updated_at_ms": 123}
 
@@ -44,6 +47,16 @@ class FakeExportService:
     def export(self, session: SessionRef):
         self.exported.append(session)
         return ExportResult(ExportStatus.EXPORTED, session.session_id, "Exported", filename="thread.md", markdown="# Thread\n")
+
+    def export_zip(self, sessions: list[SessionRef]):
+        self.exported.extend(sessions)
+        return BulkExportResult(
+            ExportStatus.EXPORTED,
+            f"已导出 {len(sessions)}/{len(sessions)} 个会话为 ZIP",
+            filename="threads.zip",
+            zip_base64="emlw",
+            exported_count=len(sessions),
+        )
 
 
 def post_json(url, payload, headers=None):
@@ -190,6 +203,25 @@ def test_helper_server_exports_markdown_when_authorized():
     assert export_service.exported[0].session_id == "s1"
 
 
+def test_helper_server_exports_markdown_zip_when_authorized():
+    delete_service = FakeDeleteService()
+    export_service = FakeExportService()
+    server = HelperServer("127.0.0.1", 0, delete_service, export_service, allow_http_mutation=True)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        base = f"http://127.0.0.1:{server.port}"
+        exported = post_json(base + "/export-markdown-zip", {"sessions": [{"session_id": "s1", "title": "First"}, {"session_id": "s2", "title": "Second"}]})
+    finally:
+        server.shutdown()
+        thread.join(timeout=3)
+
+    assert exported["status"] == "exported"
+    assert exported["filename"] == "threads.zip"
+    assert exported["zip_base64"] == "emlw"
+    assert [session.session_id for session in export_service.exported] == ["s1", "s2"]
+
+
 def test_helper_server_rejects_http_mutation_by_default():
     service = FakeDeleteService()
     server = HelperServer("127.0.0.1", 0, service)
@@ -204,6 +236,11 @@ def test_helper_server_rejects_http_mutation_by_default():
             assert exc.code == 403
         try:
             post_json(base + "/export-markdown", {"session_id": "s1", "title": "First"})
+            assert False, "expected forbidden response"
+        except urllib.error.HTTPError as exc:
+            assert exc.code == 403
+        try:
+            post_json(base + "/export-markdown-zip", {"sessions": [{"session_id": "s1", "title": "First"}]})
             assert False, "expected forbidden response"
         except urllib.error.HTTPError as exc:
             assert exc.code == 403
@@ -248,6 +285,38 @@ def test_helper_server_moves_thread_workspace_without_http_mutation_token():
         thread.join(timeout=3)
 
     assert moved == {"status": "moved", "session_id": "s1", "target_cwd": "/project/a"}
+
+
+def test_helper_server_moves_thread_projectless_without_http_mutation_token():
+    service = FakeDeleteService()
+    server = HelperServer("127.0.0.1", 0, service)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        base = f"http://127.0.0.1:{server.port}"
+        moved = post_json(base + "/move-thread-projectless", {"session_id": "s1", "title": "First"})
+    finally:
+        server.shutdown()
+        thread.join(timeout=3)
+
+    assert moved == {"status": "moved", "session_id": "s1", "target_cwd": ""}
+
+
+def test_helper_server_backend_status_uses_backend_handler_without_mutation_token():
+    service = FakeDeleteService()
+    calls = []
+    server = HelperServer("127.0.0.1", 0, service, backend_handler=lambda path, payload: calls.append((path, payload)) or {"status": "ok", "message": "后端已连接"})
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        base = f"http://127.0.0.1:{server.port}"
+        status = post_json(base + "/backend/status", {})
+    finally:
+        server.shutdown()
+        thread.join(timeout=3)
+
+    assert status == {"status": "ok", "message": "后端已连接"}
+    assert calls == [("/backend/status", {})]
 
 
 def test_helper_server_returns_thread_sort_key():

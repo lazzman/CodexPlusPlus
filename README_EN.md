@@ -18,6 +18,18 @@
 
 Codex++ is an external enhancement launcher and manager for the Codex App. It does not modify the original Codex installation. Instead, it starts Codex externally and injects enhancements through the Chromium DevTools Protocol.
 
+## Contents
+
+- [Quick Start](#quick-start)
+- [Highlights](#highlights)
+- [Relay Injection](#relay-injection)
+- [Enhancements](#enhancements)
+- [Updates and Packages](#updates-and-packages)
+- [Data Locations](#data-locations)
+- [FAQ](#faq)
+- [Development](#development)
+- [Community and Support](#community-and-support)
+
 ## Quick Start
 
 Download the latest installer from [GitHub Releases](https://github.com/BigPizzaV3/CodexPlusPlus/releases):
@@ -98,19 +110,19 @@ The Windows installer creates desktop and Start Menu shortcuts. The macOS DMG in
 
 - Rust backend and silent launcher with no Python runtime requirement.
 - Tauri + React manager with dark/light theme support.
-- External CDP injection. No `app.asar` patching and no DLL writes into the Codex installation.
+- External CDP injection with no `app.asar` patching and no DLL writes into the Codex installation.
 - Relay injection mode with multiple relay profiles, `CodexPlusPlus` provider configuration, and a one-click switch back to official ChatGPT login mode.
 - Traditional enhancement mode with plugin entry unlock, forced plugin install, session delete, Markdown export, project move, Timeline, and more.
 - Independent user script management with startup injection.
 - Provider Sync to keep historical sessions visible after switching providers.
 - Zed open entry detects remote SSH context and opens the matching remote file in Zed Remote Development from Codex.
-- GitHub Release updates. Both the manager and silent launcher can detect available updates.
+- GitHub Release updates for both the manager and the silent launcher.
 - Windows single instance, no console window, administrator manifest, and system Desktop path detection.
-- Separate macOS x64 and arm64 DMGs. The silent launcher hides its Dock icon.
+- Separate macOS x64 and arm64 DMGs with a hidden Dock icon for the silent launcher.
 
 ## Relay Injection
 
-Relay injection is for users who are already logged in with an official ChatGPT account in Codex/ChatGPT and want model requests to go through a custom compatible API.
+Relay injection is for users who are already logged in with an official ChatGPT account in Codex or ChatGPT and want model requests to go through a custom compatible API.
 
 In the manager's Relay Injection page:
 
@@ -138,18 +150,7 @@ To return to the official login mode, use the clear API mode button in the Relay
 
 Enhancements are controlled in the manager. Enhancement injection is enabled by default. When disabled, Codex++ will not inject its menu or scripts.
 
-When relay injection mode is active, plugin entry unlock and forced plugin install are unnecessary, and the UI will say so. Other enhancements, including session delete, export, move, Timeline, recommendations, and user scripts, can still be used.
-
-## Recommendations
-
-Recommended content is loaded from:
-
-```text
-https://raw.githubusercontent.com/BigPizzaV3/Ad-List/main/ads.json
-https://cdn.jsdelivr.net/gh/BigPizzaV3/Ad-List@main/ads.json
-```
-
-Requests automatically append a `?v=timestamp` cache buster to avoid stale CDN content. Slow recommendation loading does not mark the backend connection as failed.
+When relay injection mode is active, plugin entry unlock and forced plugin install are unnecessary, and the UI will say so. Other enhancements, including session delete, export, move, Timeline, and user scripts, can still be used.
 
 ## Updates and Packages
 
@@ -228,13 +229,6 @@ The old Python entry points are no longer recommended. The remaining `codex_sess
 Scan the QR code to join the Codex++ discussion group, report issues, share usage notes, or suggest features:
 
 <img src="docs/images/discussion-group-qr.jpg" alt="Codex++ discussion group QR code" width="260">
-
-If Codex++ has helped you, you can buy me a coffee or send a small tip to support continued maintenance.
-
-<p align="center">
-  <img src="docs/images/sponsor-alipay.jpg" alt="Alipay sponsor QR code" width="220">
-  <img src="docs/images/sponsor-wechat.jpg" alt="WeChat sponsor QR code" width="220">
-</p>
 
 ## Friendly Links
 

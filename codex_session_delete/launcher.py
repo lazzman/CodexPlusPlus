@@ -13,7 +13,6 @@ import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlsplit, urlunsplit
 from urllib.parse import urlparse, urlsplit, urlunsplit
 
 from codex_session_delete import cdp, zed_remote
@@ -59,6 +58,11 @@ class ApiFirstDeleteService:
             return {"status": DeleteStatus.FAILED.value, "session_id": session.session_id, "message": "No local database configured"}
         return self.local_adapter.move_codex_thread_workspace(session, target_cwd)
 
+    def move_thread_projectless(self, session: SessionRef) -> dict[str, object]:
+        if self.local_adapter is None:
+            return {"status": DeleteStatus.FAILED.value, "session_id": session.session_id, "message": "No local database configured"}
+        return self.local_adapter.move_codex_thread_to_projectless(session)
+
     def thread_sort_key(self, session: SessionRef) -> dict[str, object]:
         if self.local_adapter is None:
             return {"status": DeleteStatus.FAILED.value, "session_id": session.session_id, "message": "No local database configured"}
@@ -88,14 +92,19 @@ class AttachedHelperServer:
     port: int
     bridge_socket: Any = None
 
-
 @dataclass
 class CodexPlusRuntime:
     websocket_url: str | None
     user_scripts: UserScriptManager
     debug_port: int | None = None
+    helper_port: int | None = None
+    script_path: Path | None = None
+    service: ApiFirstDeleteService | None = None
+    export_service: MarkdownExportService | None = None
+    bridge_socket: Any = None
     websocket_urls: set[str] = field(default_factory=set)
     lock: threading.Lock = field(default_factory=threading.Lock)
+    repair_lock: threading.Lock = field(default_factory=threading.Lock)
 
     def add_websocket_url(self, websocket_url: str) -> None:
         with self.lock:
@@ -130,7 +139,24 @@ class CodexPlusRuntime:
         return {"status": "ok", "message": "后端已连接"}
 
     def repair_backend(self) -> dict[str, object]:
-        return self.backend_status()
+        with self.repair_lock:
+            if self.debug_port is None or self.helper_port is None or self.script_path is None or self.service is None or self.export_service is None:
+                return {"status": "failed", "message": "后端修复失败：运行时配置不完整"}
+            self._close_bridge_socket()
+            try:
+                self.bridge_socket = inject_with_retry(
+                    self.debug_port,
+                    self.script_path,
+                    self.helper_port,
+                    self.service,
+                    self.export_service,
+                    self,
+                    attempts=6,
+                    delay=0.25,
+                )
+            except Exception as exc:
+                return {"status": "failed", "message": f"后端修复失败：{exc}"}
+            return {"status": "ok", "message": "后端已修复"}
 
     def ads(self) -> dict[str, object]:
         return fetch_ad_list()
@@ -140,6 +166,32 @@ class CodexPlusRuntime:
 
     def codex_model_catalog(self) -> dict[str, object]:
         return read_codex_model_catalog()
+
+    def _close_bridge_socket(self) -> None:
+        socket_obj = self.bridge_socket
+        self.bridge_socket = None
+        if socket_obj is None:
+            return
+        stop_event = getattr(socket_obj, "stop_event", None)
+        if stop_event is not None:
+            try:
+                stop_event.set()
+            except Exception:
+                pass
+        injections = getattr(socket_obj, "injections", None)
+        if isinstance(injections, dict):
+            for injection in list(injections.values()):
+                bridge_socket = getattr(injection, "bridge_socket", None)
+                if hasattr(bridge_socket, "close"):
+                    try:
+                        bridge_socket.close()
+                    except Exception:
+                        pass
+        if hasattr(socket_obj, "close"):
+            try:
+                socket_obj.close()
+            except Exception:
+                pass
 
 
 def codex_home_path() -> Path:
@@ -603,8 +655,13 @@ def local_proxy_url() -> str | None:
     return None
 
 
+def codex_home_path() -> Path:
+    configured = os.environ.get("CODEX_HOME")
+    return Path(configured).expanduser() if configured else Path.home() / ".codex"
+
+
 def codex_config_proxy_bypass_hosts(config_path: Path | None = None) -> set[str]:
-    path = config_path or Path.home() / ".codex" / "config.toml"
+    path = config_path or codex_home_path() / "config.toml"
     try:
         config = tomllib.loads(path.read_text(encoding="utf-8"))
     except (OSError, tomllib.TOMLDecodeError):
@@ -775,8 +832,14 @@ def launch_codex_app(app_dir: Path, debug_port: int, auto_proxy: bool = False) -
     return subprocess.Popen(build_codex_command(app_dir, debug_port), env=env)
 
 
-def start_helper(service, export_service: MarkdownExportService | None = None, host: str = "127.0.0.1", port: int = 57321) -> HelperServer:
-    server = InjectedHelperServer(host, port, service, export_service=export_service)
+def start_helper(
+    service,
+    export_service: MarkdownExportService | None = None,
+    host: str = "127.0.0.1",
+    port: int = 57321,
+    backend_handler=None,
+) -> HelperServer:
+    server = InjectedHelperServer(host, port, service, export_service=export_service, backend_handler=backend_handler)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     return server
@@ -798,11 +861,12 @@ def start_or_attach_helper(
     export_service: MarkdownExportService | None = None,
     host: str = "127.0.0.1",
     port: int = 57321,
+    backend_handler=None,
 ) -> HelperServer | AttachedHelperServer:
     if helper_health_ok(port, host):
         _log_runtime_event(f"attached existing helper host={host} port={port}")
         return AttachedHelperServer(port)
-    return start_helper(service, export_service, host, port)
+    return start_helper(service, export_service, host, port, backend_handler)
 
 
 def shutdown_helper(server: HelperServer) -> None:
@@ -836,9 +900,10 @@ def inject_with_retry(
                 lambda path, payload: handle_bridge_request(service, export_service, path, payload, runtime),
                 on_injection=on_injection,
             )
-            _log_runtime_event(f"injected renderer bridge debug_port={debug_port} helper_port={helper_port}")
             if injection.websocket_url:
                 runtime.add_websocket_url(injection.websocket_url)
+            runtime.bridge_socket = injection
+            _log_runtime_event(f"injected renderer bridge debug_port={debug_port} helper_port={helper_port}")
             return injection
         except Exception as exc:
             last_error = exc
@@ -876,22 +941,25 @@ def check_and_reinject_bridge(
     export_service: MarkdownExportService,
     runtime: CodexPlusRuntime,
 ) -> bool:
-    websocket_url = runtime.websocket_url
-    if not websocket_url:
+    with runtime.lock:
+        websocket_urls = list(runtime.websocket_urls or ({runtime.websocket_url} if runtime.websocket_url else set()))
+    if not websocket_urls:
         return False
-    try:
-        result = evaluate_script(websocket_url, "typeof window.__codexSessionDeleteBridge === 'function'")
-        if result.get("result", {}).get("result", {}).get("value"):
-            return False
-        _log_runtime_event(f"renderer bridge missing; reinjecting debug_port={debug_port} helper_port={helper_port}")
-    except Exception as exc:
-        _log_runtime_event(f"bridge health check failed; reinjecting debug_port={debug_port} helper_port={helper_port}: {exc}")
-    try:
-        inject_with_retry(debug_port, script_path, helper_port, service, export_service, runtime, attempts=3, delay=0.5)
-        return True
-    except Exception as exc:
-        _log_runtime_event(f"bridge reinjection failed debug_port={debug_port} helper_port={helper_port}: {exc}")
-        return False
+    reinjected = False
+    for websocket_url in websocket_urls:
+        try:
+            result = evaluate_script(websocket_url, "typeof window.__codexSessionDeleteBridge === 'function'")
+            if result.get("result", {}).get("result", {}).get("value"):
+                continue
+            _log_runtime_event(f"renderer bridge missing; reinjecting debug_port={debug_port} helper_port={helper_port}")
+        except Exception as exc:
+            _log_runtime_event(f"bridge health check failed; reinjecting debug_port={debug_port} helper_port={helper_port}: {exc}")
+        try:
+            inject_with_retry(debug_port, script_path, helper_port, service, export_service, runtime, attempts=3, delay=0.5)
+            reinjected = True
+        except Exception as exc:
+            _log_runtime_event(f"bridge reinjection failed debug_port={debug_port} helper_port={helper_port}: {exc}")
+    return reinjected
 
 
 def launch_and_inject(
@@ -913,12 +981,26 @@ def launch_and_inject(
     builtin_user_scripts_dir = Path(__file__).parent / "user_scripts"
     user_config_dir = user_scripts_config_dir()
     user_script_manager = UserScriptManager(builtin_user_scripts_dir, user_config_dir / "user_scripts", user_config_dir / "user_scripts.json")
-    runtime = CodexPlusRuntime(None, user_script_manager, debug_port)
+    runtime = CodexPlusRuntime(
+        None,
+        user_script_manager,
+        debug_port,
+        helper_port=helper_port,
+        script_path=script_path,
+        service=service,
+        export_service=export_service,
+    )
     if backend_settings().provider_sync_enabled:
         sync_result = run_provider_sync()
         if sync_result.status == ProviderSyncStatus.SKIPPED:
             print(f"Provider sync skipped: {sync_result.message}")
-    server = start_or_attach_helper(service, export_service, port=helper_port)
+    server = start_or_attach_helper(
+        service,
+        export_service,
+        port=helper_port,
+        backend_handler=lambda path, payload: handle_bridge_request(service, export_service, path, payload, runtime),
+    )
+    runtime.helper_port = server.port
     codex_proc = None
     try:
         codex_proc = launch_codex_app(resolved_app_dir, debug_port, auto_proxy)
@@ -1007,12 +1089,23 @@ def handle_bridge_request(
     if path == "/export-markdown":
         session = SessionRef(session_id=str(payload.get("session_id", "")), title=str(payload.get("title", "")))
         return export_service.export(session).to_dict()
+    if path == "/export-markdown-zip":
+        raw_sessions = payload.get("sessions", [])
+        sessions = [
+            SessionRef(session_id=str(item.get("session_id", "")), title=str(item.get("title", "")))
+            for item in raw_sessions
+            if isinstance(item, dict) and item.get("session_id")
+        ] if isinstance(raw_sessions, list) else []
+        return export_service.export_zip(sessions).to_dict()
     if path == "/archived-thread":
         session = service.find_archived_thread_by_title(str(payload.get("title", "")))
         return {"session_id": session.session_id, "title": session.title} if session else {"session_id": "", "title": ""}
     if path == "/move-thread-workspace":
         session = SessionRef(session_id=str(payload.get("session_id", "")), title=str(payload.get("title", "")))
         return service.move_thread_workspace(session, str(payload.get("target_cwd", "")))
+    if path == "/move-thread-projectless":
+        session = SessionRef(session_id=str(payload.get("session_id", "")), title=str(payload.get("title", "")))
+        return service.move_thread_projectless(session)
     if path == "/thread-sort-key":
         session = SessionRef(session_id=str(payload.get("session_id", "")), title=str(payload.get("title", "")))
         return service.thread_sort_key(session)

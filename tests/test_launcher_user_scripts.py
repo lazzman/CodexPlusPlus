@@ -1,5 +1,6 @@
 from codex_session_delete.launcher import handle_bridge_request, read_codex_config_model, read_codex_model_catalog
 from codex_session_delete.models import ExportResult, ExportStatus
+from codex_session_delete.models import BulkExportResult, ExportResult, ExportStatus
 from codex_session_delete.settings_store import SettingsStore
 from codex_session_delete.user_scripts import UserScriptManager
 
@@ -14,10 +15,25 @@ class FakeDeleteService:
     def find_archived_thread_by_title(self, title):
         return None
 
+    def move_thread_workspace(self, session, target_cwd):
+        return {"status": "moved", "session_id": session.session_id, "target_cwd": target_cwd}
+
+    def move_thread_projectless(self, session):
+        return {"status": "moved", "session_id": session.session_id, "target_cwd": ""}
+
+    def thread_sort_key(self, session):
+        return {"status": "ok", "session_id": session.session_id}
+
+    def thread_sort_keys(self, sessions):
+        return {"status": "ok", "sort_keys": []}
+
 
 class FakeExportService:
     def export(self, session):
         return ExportResult(ExportStatus.EXPORTED, session.session_id, "Exported", filename="thread.md", markdown="# Thread\n")
+
+    def export_zip(self, sessions):
+        return BulkExportResult(ExportStatus.EXPORTED, "已导出 ZIP", filename="threads.zip", zip_base64="emlw", exported_count=len(sessions))
 
 
 class FakeRuntime:
@@ -507,3 +523,29 @@ def test_handle_bridge_request_opens_zed_remote(monkeypatch, tmp_path):
 
     assert result == {"status": "ok", "url": "ssh://example.com/home/app.py"}
     assert opened == [payload]
+
+
+def test_handle_bridge_request_exports_markdown_zip(tmp_path):
+    manager = UserScriptManager(tmp_path / "builtin", tmp_path / "user", tmp_path / "config.json")
+    runtime = FakeRuntime(manager)
+
+    exported = handle_bridge_request(
+        FakeDeleteService(),
+        FakeExportService(),
+        "/export-markdown-zip",
+        {"sessions": [{"session_id": "s1", "title": "First"}, {"session_id": "s2", "title": "Second"}]},
+        runtime,
+    )
+
+    assert exported["status"] == "exported"
+    assert exported["filename"] == "threads.zip"
+    assert exported["exported_count"] == 2
+
+
+def test_handle_bridge_request_moves_thread_projectless(tmp_path):
+    manager = UserScriptManager(tmp_path / "builtin", tmp_path / "user", tmp_path / "config.json")
+    runtime = FakeRuntime(manager)
+
+    moved = handle_bridge_request(FakeDeleteService(), FakeExportService(), "/move-thread-projectless", {"session_id": "s1", "title": "First"}, runtime)
+
+    assert moved == {"status": "moved", "session_id": "s1", "target_cwd": ""}

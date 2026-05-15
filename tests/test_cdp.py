@@ -5,7 +5,7 @@ from pathlib import Path
 import codex_session_delete.cdp as cdp
 import websocket
 
-from codex_session_delete.cdp import BRIDGE_BINDING_NAME, _bridge_loop, add_script_to_new_documents, build_bridge_script, codex_page_targets, evaluate_user_scripts, install_bridge, list_targets, open_devtools, pick_page_target
+from codex_session_delete.cdp import BRIDGE_BINDING_NAME, InjectionResult, _bridge_loop, add_script_to_new_documents, build_bridge_script, codex_page_targets, evaluate_user_scripts, inject_file_into_all_pages, install_bridge, list_targets, open_devtools, pick_page_target
 
 
 class TimeoutThenMessageSocket:
@@ -131,6 +131,9 @@ def test_build_bridge_script_installs_binding_callbacks():
     assert "window.codexSessionDelete" in script
     assert "window.__codexSessionDeleteResolve" in script
     assert "window.__codexSessionDeleteReject" in script
+    assert "timeoutMs = 30000" in script
+    assert "\\u540e\\u7aef\\u8bf7\\u6c42\\u8d85\\u65f6" in script
+    assert "clearTimeout(callback.timeout)" in script
 
 
 def test_bridge_binding_name_is_versioned_for_reinjection():
@@ -195,13 +198,13 @@ def test_inject_file_into_all_pages_injects_existing_codex_windows(monkeypatch, 
 
     def fake_inject_target(target, full_script, handler):
         injected.append((target["id"], full_script))
-        return cdp.InjectionResult(websocket_url=target["webSocketDebuggerUrl"], bridge_socket=None, result={"status": target["id"]})
+        return InjectionResult(websocket_url=target["webSocketDebuggerUrl"], bridge_socket=None, result={"status": target["id"]})
 
     monkeypatch.setattr(cdp, "list_targets", lambda port: targets)
     monkeypatch.setattr(cdp, "inject_target", fake_inject_target)
     monkeypatch.setattr(cdp.threading, "Thread", lambda **kwargs: thread)
 
-    manager = cdp.inject_file_into_all_pages(9229, script_path, 57321, lambda path, payload: {}, on_injection=callbacks.append)
+    manager = inject_file_into_all_pages(9229, script_path, 57321, lambda path, payload: {}, on_injection=callbacks.append)
 
     assert [item[0] for item in injected] == ["main", "child"]
     assert "window.__CODEX_SESSION_DELETE_HELPER__ = 'http://127.0.0.1:57321';" in injected[0][1]
@@ -222,13 +225,13 @@ def test_inject_file_into_all_pages_keeps_successful_targets_when_one_fails(monk
     def fake_inject_target(target, full_script, handler):
         if target["id"] == "child":
             raise RuntimeError("page still loading")
-        return cdp.InjectionResult(websocket_url=target["webSocketDebuggerUrl"], bridge_socket=None, result={"status": target["id"]})
+        return InjectionResult(websocket_url=target["webSocketDebuggerUrl"], bridge_socket=None, result={"status": target["id"]})
 
     monkeypatch.setattr(cdp, "list_targets", lambda port: targets)
     monkeypatch.setattr(cdp, "inject_target", fake_inject_target)
     monkeypatch.setattr(cdp.threading, "Thread", lambda **kwargs: FakeThread())
 
-    manager = cdp.inject_file_into_all_pages(9229, script_path, 57321)
+    manager = inject_file_into_all_pages(9229, script_path, 57321)
 
     assert sorted(manager.injections) == ["main"]
 
