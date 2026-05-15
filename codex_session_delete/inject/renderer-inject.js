@@ -3690,27 +3690,54 @@
     window.__codexBulkMoveFailures = failures;
   }
 
-  function openBulkProjectMoveMenu() {
-    const sessions = selectedBulkMoveSessions();
-    if (!sessions.length) {
-      showToast("请选择要移动的会话", null);
+  function centerProjectMoveDialogPanel(panel) {
+    const panelWidth = Math.min(360, Math.max(240, window.innerWidth - 32));
+    panel.style.left = `${Math.max(16, (window.innerWidth - panelWidth) / 2)}px`;
+    panel.style.top = `${Math.max(16, (window.innerHeight - Math.min(520, window.innerHeight - 32)) / 2)}px`;
+  }
+
+  function renderProjectMoveDialogTargets(overlay, close, onSelectTarget) {
+    const targets = projectMoveTargets();
+    const list = overlay.querySelector(".codex-project-move-list");
+    if (!list) return;
+    list.innerHTML = "";
+    if (targets.length === 0) {
+      list.innerHTML = `<div class="codex-project-move-empty">没有可用目标</div>`;
       return;
     }
+    for (const target of targets) {
+      const item = document.createElement("button");
+      item.type = "button";
+      item.className = "codex-project-move-item";
+      item.innerHTML = `
+        <div class="codex-project-move-item-title">${escapeHtml(target.label)}</div>
+        <div class="codex-project-move-item-path">${escapeHtml(target.description)}</div>
+      `;
+      item.addEventListener("click", async (selectEvent) => {
+        selectEvent.preventDefault();
+        selectEvent.stopPropagation();
+        close();
+        await onSelectTarget(target);
+      }, true);
+      list.appendChild(item);
+    }
+    list.querySelector("button")?.focus();
+  }
+
+  function openProjectMoveDialog({ title, ariaLabel, onSelectTarget }) {
     document.querySelectorAll(`.${projectMoveOverlayClass}`).forEach((node) => node.remove());
     const overlay = document.createElement("div");
     overlay.className = projectMoveOverlayClass;
     overlay.innerHTML = `
-      <div class="codex-project-move-panel" role="dialog" aria-modal="true" aria-label="批量移动对话">
+      <div class="codex-project-move-panel" role="dialog" aria-modal="true" aria-label="${escapeHtml(ariaLabel)}">
         <div class="codex-project-move-header">
-          <div class="codex-project-move-title">移动 ${sessions.length} 个会话</div>
+          <div class="codex-project-move-title">${escapeHtml(title)}</div>
         </div>
         <div class="codex-project-move-list"><div class="codex-project-move-empty">加载项目中...</div></div>
       </div>
     `;
     const panel = overlay.querySelector(".codex-project-move-panel");
-    const panelWidth = Math.min(360, Math.max(240, window.innerWidth - 32));
-    panel.style.left = `${Math.max(16, (window.innerWidth - panelWidth) / 2)}px`;
-    panel.style.top = `${Math.max(16, (window.innerHeight - Math.min(520, window.innerHeight - 32)) / 2)}px`;
+    centerProjectMoveDialogPanel(panel);
     const close = () => overlay.remove();
     overlay.addEventListener("click", (clickEvent) => {
       if (clickEvent.target === overlay) close();
@@ -3723,35 +3750,24 @@
     }, true);
     document.body.appendChild(overlay);
     try {
-      const targets = projectMoveTargets();
-      const list = overlay.querySelector(".codex-project-move-list");
-      if (!list) return;
-      list.innerHTML = "";
-      if (targets.length === 0) {
-        list.innerHTML = `<div class="codex-project-move-empty">没有可用目标</div>`;
-        return;
-      }
-      for (const target of targets) {
-        const item = document.createElement("button");
-        item.type = "button";
-        item.className = "codex-project-move-item";
-        item.innerHTML = `
-          <div class="codex-project-move-item-title">${escapeHtml(target.label)}</div>
-          <div class="codex-project-move-item-path">${escapeHtml(target.description)}</div>
-        `;
-        item.addEventListener("click", async (selectEvent) => {
-          selectEvent.preventDefault();
-          selectEvent.stopPropagation();
-          close();
-          await moveSelectedSessionsToTarget(target);
-        }, true);
-        list.appendChild(item);
-      }
-      list.querySelector("button")?.focus();
+      renderProjectMoveDialogTargets(overlay, close, onSelectTarget);
     } catch (error) {
       close();
       showToast(`加载项目失败：${error?.message || error}`, null);
     }
+  }
+
+  function openBulkProjectMoveMenu() {
+    const sessions = selectedBulkMoveSessions();
+    if (!sessions.length) {
+      showToast("请选择要移动的会话", null);
+      return;
+    }
+    openProjectMoveDialog({
+      title: `移动 ${sessions.length} 个会话`,
+      ariaLabel: "批量移动对话",
+      onSelectTarget: moveSelectedSessionsToTarget,
+    });
   }
 
   function finishProjectMove(row, button, ref, target, message) {
@@ -3787,63 +3803,11 @@
     event.stopPropagation();
     event.stopImmediatePropagation?.();
     releaseDeleteFocus(row, button);
-    document.querySelectorAll(`.${projectMoveOverlayClass}`).forEach((node) => node.remove());
-    const overlay = document.createElement("div");
-    overlay.className = projectMoveOverlayClass;
-    overlay.innerHTML = `
-      <div class="codex-project-move-panel" role="dialog" aria-modal="true" aria-label="移动对话">
-        <div class="codex-project-move-header">
-          <div class="codex-project-move-title">移动“${escapeHtml(ref.title || ref.session_id)}”</div>
-        </div>
-        <div class="codex-project-move-list"><div class="codex-project-move-empty">加载项目中...</div></div>
-      </div>
-    `;
-    const panel = overlay.querySelector(".codex-project-move-panel");
-    const rect = button.getBoundingClientRect();
-    const panelWidth = Math.min(360, Math.max(240, window.innerWidth - 32));
-    panel.style.left = `${Math.max(16, Math.min(window.innerWidth - panelWidth - 16, rect.right - panelWidth))}px`;
-    panel.style.top = `${Math.max(16, Math.min(window.innerHeight - 120, rect.bottom + 6))}px`;
-    const close = () => overlay.remove();
-    overlay.addEventListener("click", (clickEvent) => {
-      if (clickEvent.target === overlay) close();
-    }, true);
-    overlay.addEventListener("keydown", (keyEvent) => {
-      if (keyEvent.key === "Escape") {
-        keyEvent.preventDefault();
-        close();
-      }
-    }, true);
-    document.body.appendChild(overlay);
-    try {
-      const targets = projectMoveTargets();
-      const list = overlay.querySelector(".codex-project-move-list");
-      if (!list) return;
-      list.innerHTML = "";
-      if (targets.length === 0) {
-        list.innerHTML = `<div class="codex-project-move-empty">没有可用目标</div>`;
-        return;
-      }
-      for (const target of targets) {
-        const item = document.createElement("button");
-        item.type = "button";
-        item.className = "codex-project-move-item";
-        item.innerHTML = `
-          <div class="codex-project-move-item-title">${escapeHtml(target.label)}</div>
-          <div class="codex-project-move-item-path">${escapeHtml(target.description)}</div>
-        `;
-        item.addEventListener("click", async (selectEvent) => {
-          selectEvent.preventDefault();
-          selectEvent.stopPropagation();
-          close();
-          await applyProjectMove(row, button, ref, target);
-        }, true);
-        list.appendChild(item);
-      }
-      list.querySelector("button")?.focus();
-    } catch (error) {
-      close();
-      showToast(`加载项目失败：${error?.message || error}`, null);
-    }
+    openProjectMoveDialog({
+      title: `移动“${ref.title || ref.session_id}”`,
+      ariaLabel: "移动对话",
+      onSelectTarget: (target) => applyProjectMove(row, button, ref, target),
+    });
   }
 
   function installDeleteButtonEventDelegation() {

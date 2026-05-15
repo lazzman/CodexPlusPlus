@@ -306,6 +306,46 @@ def test_renderer_script_supports_bulk_export_and_bulk_move_contracts():
     assert "window.__codexBulkMoveFailures" in text
 
 
+def test_renderer_script_reuses_project_move_dialog_for_single_and_bulk_move():
+    text = Path("codex_session_delete/inject/renderer-inject.js").read_text(encoding="utf-8")
+    shared_start = text.index("function centerProjectMoveDialogPanel")
+    shared_end = text.index("\n\n  function openBulkProjectMoveMenu", shared_start)
+    shared_code = text[shared_start:shared_end]
+    bulk_start = text.index("function openBulkProjectMoveMenu")
+    bulk_end = text.index("\n\n  function finishProjectMove", bulk_start)
+    bulk_code = text[bulk_start:bulk_end]
+    single_start = text.index("async function openProjectMoveMenuForRow")
+    single_end = text.index("\n\n  function installDeleteButtonEventDelegation", single_start)
+    single_code = text[single_start:single_end]
+
+    assert "function openProjectMoveDialog({ title, ariaLabel, onSelectTarget })" in shared_code
+    assert "function renderProjectMoveDialogTargets(overlay, close, onSelectTarget)" in shared_code
+    assert "centerProjectMoveDialogPanel(panel)" in shared_code
+    assert "position:" not in shared_code
+    assert "anchor:" not in shared_code
+    assert "getBoundingClientRect()" not in shared_code
+    assert 'kind === "anchor"' not in shared_code
+    assert "加载项目中..." in shared_code
+    assert "没有可用目标" in shared_code
+    assert "showToast(`加载项目失败：" in shared_code
+    assert "await onSelectTarget(target)" in shared_code
+    assert "clickEvent.target === overlay" in shared_code
+    assert 'keyEvent.key === "Escape"' in shared_code
+
+    assert "openProjectMoveDialog({" in bulk_code
+    assert "position:" not in bulk_code
+    assert "onSelectTarget: moveSelectedSessionsToTarget" in bulk_code
+    assert "projectMoveTargets()" not in bulk_code
+    assert "codex-project-move-item" not in bulk_code
+
+    assert "openProjectMoveDialog({" in single_code
+    assert "position:" not in single_code
+    assert "anchor: button" not in single_code
+    assert "onSelectTarget: (target) => applyProjectMove(row, button, ref, target)" in single_code
+    assert "projectMoveTargets()" not in single_code
+    assert "codex-project-move-item" not in single_code
+
+
 def test_renderer_script_backend_repair_uses_bridge_timeout_and_http_fallback():
     text = Path("codex_session_delete/inject/renderer-inject.js").read_text(encoding="utf-8")
 
