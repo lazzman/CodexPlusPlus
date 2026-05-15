@@ -43,4 +43,4 @@ def uninstall_codex_plus_plus(options: InstallOptions) -> None:
 def remove_owned_data() -> None:
     data_dir = Path.home() / ".codex-session-delete"
     if data_dir.exists():
-        shutil.rmtree(data_dir)
+        shutil.rmtree(data_dir, ignore_errors=True)

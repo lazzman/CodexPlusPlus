@@ -34,9 +34,12 @@ def watcher_disabled_flag() -> Path:
 
 def log(line: str) -> None:
     path = watcher_log_path()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("a", encoding="utf-8") as handle:
-        handle.write(f"[{datetime.now().isoformat(timespec='seconds')}] {line}\n")
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("a", encoding="utf-8") as handle:
+            handle.write(f"[{datetime.now().isoformat(timespec='seconds')}] {line}\n")
+    except OSError:
+        return
 
 
 def cdp_listening(port: int) -> bool:
