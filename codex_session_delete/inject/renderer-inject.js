@@ -36,13 +36,13 @@
   const chatsSortRefreshIntervalMs = 1500;
   const chatsSortDbRefreshIntervalMs = 5000;
   const styleId = "codex-delete-style";
-  const codexDeleteStyleVersion = "11";
+  const codexDeleteStyleVersion = "13";
   const codexPlusMenuId = "codex-plus-menu";
   const codexPlusMenuFloatingClass = "codex-plus-menu-floating";
   const codexDeleteVersion = "8";
   const codexExportVersion = "2";
   const codexProjectMoveVersion = "2";
-  const codexActionGroupVersion = "4";
+  const codexActionGroupVersion = "5";
   const codexArchiveDeleteAllVersion = "4";
   const codexRetryAttemptControlsVersion = "1";
   const retryAttemptLimitValue = 100;
@@ -141,10 +141,8 @@
         --codex-plus-danger-border: rgba(248, 113, 113, .30);
       }
       .${actionGroupClass} {
-        position: absolute;
-        right: var(--codex-session-action-right, 48px);
-        top: 50%;
-        transform: translateY(-50%);
+        position: static;
+        flex: 0 0 auto;
         z-index: 20;
         opacity: 0;
         pointer-events: none;
@@ -152,14 +150,12 @@
         align-items: center;
         justify-content: center;
         gap: 6px;
+        margin-right: 6px;
         height: 20px;
         min-height: 20px;
         padding: 0;
         border: 0;
         background: transparent;
-      }
-      [data-codex-session-action-container="true"] {
-        position: relative !important;
       }
       .${actionButtonClass} {
         display: inline-flex !important;
@@ -183,8 +179,8 @@
         transition: color .12s ease, opacity .12s ease, transform .12s ease !important;
       }
       .${actionButtonClass} svg {
-        width: 14px !important;
-        height: 14px !important;
+        width: 16px !important;
+        height: 16px !important;
         display: block !important;
         fill: none !important;
         stroke: currentColor !important;
@@ -324,9 +320,6 @@
       [data-codex-delete-row="true"]:focus-within .${actionGroupClass} {
         opacity: 1;
         pointer-events: auto;
-      }
-      [data-codex-delete-row="true"].codex-archive-confirm-visible .${actionGroupClass} {
-        right: var(--codex-session-action-confirm-right, 66px);
       }
       .${projectMoveOverlayClass} {
         position: fixed;
@@ -4215,6 +4208,51 @@
     row.querySelectorAll(`.${actionGroupClass}`).forEach((group) => group.remove());
   }
 
+  function sidebarArchiveLabelText(value) {
+    return String(value || "").replace(/\s+/g, " ").trim();
+  }
+
+  function labelLooksLikeSidebarArchiveAction(value) {
+    const text = sidebarArchiveLabelText(value);
+    if (!text) return false;
+    const lower = text.toLowerCase();
+    if (text.includes("取消归档") || text.includes("已归档") || lower.includes("unarchive") || lower.includes("archived conversations")) return false;
+    return text === "归档对话"
+      || text === "归档"
+      || lower === "archive"
+      || (/\barchive\b/.test(lower) && (lower.includes("conversation") || lower.includes("chat")));
+  }
+
+  function isSidebarNativeArchiveButton(button) {
+    if (!button || button.closest?.(`.${actionGroupClass}`)) return false;
+    return [
+      button.getAttribute?.("aria-label"),
+      button.getAttribute?.("title"),
+      button.textContent,
+    ].some(labelLooksLikeSidebarArchiveAction);
+  }
+
+  function sidebarNativeArchiveButton(row) {
+    if (!row?.matches?.(selectors.sidebarThread)) return null;
+    return Array.from(row.querySelectorAll("button")).find(isSidebarNativeArchiveButton) || null;
+  }
+
+  function sidebarActionMountTarget(row) {
+    const archiveButton = sidebarNativeArchiveButton(row);
+    const archiveParent = archiveButton?.parentElement || null;
+    if (archiveButton && archiveParent && row.contains(archiveParent)) {
+      return { root: archiveParent, archiveButton };
+    }
+    return { root: rowContentRoot(row) || row, archiveButton: null };
+  }
+
+  function actionGroupMountReady(row, group) {
+    if (!group) return false;
+    const { root, archiveButton } = sidebarActionMountTarget(row);
+    if (group.parentElement !== root) return false;
+    return !archiveButton || group.nextElementSibling === archiveButton;
+  }
+
   function stopActionButtonEvent(row, button, event) {
     event.preventDefault();
     event.stopPropagation();
@@ -4286,7 +4324,8 @@
     const exportReady = !settings.markdownExport || existingExportButton?.dataset.codexExportVersion === codexExportVersion;
     const moveReady = !settings.projectMove || existingMoveButton?.dataset.codexProjectMoveVersion === codexProjectMoveVersion;
     const groupReady = existingGroup?.dataset.codexActionGroupVersion === codexActionGroupVersion;
-    if (groupReady && deleteReady && exportReady && moveReady && !hasUnexpectedDelete && !hasUnexpectedExport && !hasUnexpectedMove && !missingDelete && !missingExport && !missingMove) return;
+    const mountReady = actionGroupMountReady(row, existingGroup);
+    if (groupReady && mountReady && deleteReady && exportReady && moveReady && !hasUnexpectedDelete && !hasUnexpectedExport && !hasUnexpectedMove && !missingDelete && !missingExport && !missingMove) return;
     removeActionGroups(row);
     row.dataset.codexDeleteRow = "false";
     row.dataset.codexProjectMoveRow = "false";
@@ -4294,7 +4333,7 @@
     if (!ref.session_id) return;
     row.dataset.codexDeleteRow = "true";
     row.dataset.codexProjectMoveRow = String(!!settings.projectMove);
-    const root = rowContentRoot(row) || row;
+    const { root, archiveButton } = sidebarActionMountTarget(row);
     root.dataset.codexSessionActionContainer = "true";
     const group = document.createElement("div");
     group.className = actionGroupClass;
@@ -4335,7 +4374,11 @@
       group.appendChild(deleteButton);
       setTimeout(() => refreshActionButton(deleteButton, row, openDeleteConfirm), 0);
     }
-    root.appendChild(group);
+    if (archiveButton && archiveButton.parentElement === root) {
+      root.insertBefore(group, archiveButton);
+    } else {
+      root.appendChild(group);
+    }
   }
 
   function tryAttachButton(row) {

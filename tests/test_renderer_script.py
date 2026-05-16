@@ -38,13 +38,16 @@ def test_renderer_script_supports_codex_sidebar_thread_attributes():
 
 def test_renderer_script_positions_delete_button_without_affecting_layout():
     text = Path("codex_session_delete/inject/renderer-inject.js").read_text(encoding="utf-8")
-    assert "position: absolute" in text
-    assert "right: var(--codex-session-action-right, 48px)" in text
-    assert "top: 50%" in text
-    assert "transform: translateY(-50%)" in text
+    start = text.index(".${actionGroupClass} {")
+    end = text.index("\n      .${actionButtonClass}", start)
+    action_group_style = text[start:end]
+    assert "position: static" in action_group_style
+    assert "flex: 0 0 auto" in action_group_style
+    assert "gap: 6px" in action_group_style
+    assert "margin-right: 6px" in action_group_style
     assert "display: inline-flex" in text
     assert "[data-codex-delete-row=\"true\"]:focus-within .${actionGroupClass}" in text
-    assert "right: var(--codex-session-action-confirm-right, 66px)" in text
+    assert "right: var(--codex-session-action-right, 48px)" not in text
 
 
 
@@ -476,18 +479,63 @@ def test_renderer_script_sidebar_actions_are_accessible_icon_buttons():
     assert "configureSessionActionButton(moveButton, \"move\")" in text
     assert "configureSessionActionButton(exportButton, \"export\")" in text
     assert "configureSessionActionButton(deleteButton, \"delete\")" in text
-    assert "const root = rowContentRoot(row) || row" in text
+    assert "function sidebarNativeArchiveButton(row)" in text
+    assert "if (!row?.matches?.(selectors.sidebarThread)) return null" in text
+    assert "Array.from(row.querySelectorAll(\"button\")).find(isSidebarNativeArchiveButton)" in text
+    assert "button.getAttribute?.(\"aria-label\")" in text
+    assert "button.getAttribute?.(\"title\")" in text
+    assert "button.textContent" in text
+    assert "text === \"归档对话\"" in text
+    assert "lower === \"archive\"" in text
+    assert "lower.includes(\"conversation\") || lower.includes(\"chat\")" in text
+    assert "return { root: rowContentRoot(row) || row, archiveButton: null }" in text
+    assert "const { root, archiveButton } = sidebarActionMountTarget(row)" in text
     assert "root.dataset.codexSessionActionContainer = \"true\"" in text
-    assert "[data-codex-session-action-container=\"true\"]" in text
-    assert "position: relative !important" in text
-    assert "root.appendChild(group)" in text
+    assert "root.insertBefore(group, archiveButton)" in text
+    assert "archiveButton.appendChild(group)" not in text
     assert "row.appendChild(group)" not in text
-    assert "right: var(--codex-session-action-right, 48px)" in text
+    assert "right: var(--codex-session-action-right, 48px)" not in text
     assert "pointer-events: none;" in text
     assert "pointer-events: auto;" in text
     assert ".${actionButtonClass} svg" in text
+    assert "width: 16px !important" in text
+    assert "height: 16px !important" in text
     assert "data-codex-action-kind=\"delete\"]:hover" in text
     assert "--codex-plus-action-color" in text
+
+
+def test_renderer_script_sidebar_actions_mount_before_native_archive_button():
+    text = Path("codex_session_delete/inject/renderer-inject.js").read_text(encoding="utf-8")
+    mount_start = text.index("function sidebarArchiveLabelText")
+    mount_end = text.index("\n\n  function stopActionButtonEvent", mount_start)
+    mount_code = text[mount_start:mount_end]
+    attach_start = text.index("function attachButton")
+    attach_end = text.index("\n\n  function tryAttachButton", attach_start)
+    attach_code = text[attach_start:attach_end]
+
+    assert "function sidebarNativeArchiveButton(row)" in mount_code
+    assert "if (!row?.matches?.(selectors.sidebarThread)) return null" in mount_code
+    assert "row.querySelectorAll(\"button\")" in mount_code
+    assert "button.getAttribute?.(\"aria-label\")" in mount_code
+    assert "button.getAttribute?.(\"title\")" in mount_code
+    assert "button.textContent" in mount_code
+    assert "text === \"归档对话\"" in mount_code
+    assert "lower === \"archive\"" in mount_code
+    assert "/\\barchive\\b/.test(lower)" in mount_code
+    assert "lower.includes(\"conversation\") || lower.includes(\"chat\")" in mount_code
+    assert "text.includes(\"取消归档\")" in mount_code
+    assert "text.includes(\"已归档\")" in mount_code
+    assert "lower.includes(\"unarchive\")" in mount_code
+    assert "lower.includes(\"archived conversations\")" in mount_code
+    assert "button.closest?.(`.${actionGroupClass}`)" in mount_code
+    assert "return { root: rowContentRoot(row) || row, archiveButton: null }" in mount_code
+    assert "const mountReady = actionGroupMountReady(row, existingGroup)" in attach_code
+    assert "if (archiveButton && archiveButton.parentElement === root)" in attach_code
+    assert "root.insertBefore(group, archiveButton)" in attach_code
+    assert "root.appendChild(group)" in attach_code
+    assert "archiveButton.appendChild(group)" not in text
+    assert "archiveButton.insertBefore(group" not in text
+    assert "row.appendChild(group)" not in text
 
 
 def test_renderer_script_sidebar_delete_opens_on_pointerup_when_click_is_unreliable():
@@ -516,9 +564,9 @@ def test_renderer_script_removes_orphaned_projected_rows_when_thread_is_missing(
 
     text = Path("codex_session_delete/inject/renderer-inject.js").read_text(encoding="utf-8")
     assert "updateDeleteButtonOffsets" in text
-    assert "codexDeleteStyleVersion = \"11\"" in text
-    assert "codexActionGroupVersion = \"4\"" in text
-    assert "right: var(--codex-session-action-confirm-right, 66px)" in text
+    assert "codexDeleteStyleVersion = \"13\"" in text
+    assert "codexActionGroupVersion = \"5\"" in text
+    assert "right: var(--codex-session-action-confirm-right, 66px)" not in text
     assert "确认" in text
     assert "归档对话" in text
     assert "button.getAttribute(\"aria-label\")" in text
