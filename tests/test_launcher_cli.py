@@ -28,6 +28,14 @@ class FakeProcess:
         self.waited = True
 
 
+class FakeInjectionManager:
+    def __init__(self):
+        self.closed = False
+
+    def close(self):
+        self.closed = True
+
+
 def test_launch_codex_windows_adds_remote_debugging_port(monkeypatch):
     app_dir = Path("C:/Codex/app")
     popen_calls = []
@@ -336,14 +344,39 @@ def test_helper_health_ok_checks_helper_endpoint(monkeypatch):
 def test_check_and_reinject_bridge_reinjects_when_bridge_missing(monkeypatch, tmp_path):
     events = []
     runtime = launcher.CodexPlusRuntime("ws://page", type("Scripts", (), {"build_enabled_bundle": lambda self: ""})(), 9229)
-    monkeypatch.setattr(launcher, "evaluate_script", lambda websocket_url, script: {"result": {"result": {"value": False}}})
+    monkeypatch.setattr(launcher, "evaluate_script", lambda websocket_url, script, **kwargs: {"result": {"result": {"value": False}}})
     monkeypatch.setattr(launcher, "inject_with_retry", lambda *args, **kwargs: events.append(("inject", args, kwargs)))
     monkeypatch.setattr(launcher, "_log_runtime_event", lambda message: events.append(("log", message)))
 
     assert launcher.check_and_reinject_bridge(9229, tmp_path / "renderer.js", 57321, object(), object(), runtime) is True
 
     assert any(event[0] == "inject" for event in events)
-    assert any(event[0] == "log" and "renderer bridge missing" in event[1] for event in events)
+    assert any(event[0] == "log" and "renderer bridge roundtrip failed" in event[1] for event in events)
+    evaluate_event = next(event for event in events if event[0] == "inject")
+    assert evaluate_event[2]["attempts"] == 3
+
+
+def test_check_and_reinject_bridge_uses_backend_status_roundtrip(monkeypatch, tmp_path):
+    calls = []
+    runtime = launcher.CodexPlusRuntime("ws://main", type("Scripts", (), {"build_enabled_bundle": lambda self: ""})(), 9229)
+    runtime.websocket_urls.update({"ws://main", "ws://child"})
+
+    def evaluate(websocket_url, script, **kwargs):
+        calls.append((websocket_url, script, kwargs))
+        return {"result": {"result": {"value": websocket_url == "ws://main"}}}
+
+    reinjections = []
+    monkeypatch.setattr(launcher, "evaluate_script", evaluate)
+    monkeypatch.setattr(launcher, "inject_with_retry", lambda *args, **kwargs: reinjections.append((args, kwargs)))
+    monkeypatch.setattr(launcher, "_log_runtime_event", lambda message: None)
+
+    assert launcher.check_and_reinject_bridge(9229, tmp_path / "renderer.js", 57321, object(), object(), runtime) is True
+
+    assert len(reinjections) == 1
+    assert all(call[2]["await_promise"] is True for call in calls)
+    assert all(call[2]["timeout"] == 3 for call in calls)
+    assert all("/backend/status" in call[1] for call in calls)
+    assert all("typeof window.__codexSessionDeleteBridge" not in call[1] for call in calls)
 
 
 def test_inject_with_retry_tracks_all_injected_page_targets(monkeypatch, tmp_path):
@@ -374,6 +407,29 @@ def test_inject_with_retry_tracks_all_injected_page_targets(monkeypatch, tmp_pat
         ("ws://main", "window.__userScript = true;"),
         ("ws://child", "window.__userScript = true;"),
     ]
+
+
+def test_inject_with_retry_replaces_and_closes_previous_manager(monkeypatch, tmp_path):
+    old_manager = FakeInjectionManager()
+    runtime = launcher.CodexPlusRuntime(
+        "ws://old",
+        type("Scripts", (), {"build_enabled_bundle": lambda self: ""})(),
+        9229,
+        injection_manager=old_manager,
+    )
+    new_manager = launcher.cdp.MultiPageInjection(
+        injections={"main": launcher.cdp.InjectionResult(websocket_url="ws://main", bridge_socket=None, result={"result": "main"})}
+    )
+
+    monkeypatch.setattr(launcher, "inject_file_into_all_pages", lambda *args, **kwargs: new_manager)
+    monkeypatch.setattr(launcher, "evaluate_user_scripts", lambda websocket_url, script: None)
+
+    result = launcher.inject_with_retry(9229, tmp_path / "renderer.js", 57321, object(), object(), runtime)
+
+    assert result is new_manager
+    assert runtime.injection_manager is new_manager
+    assert runtime.bridge_socket is new_manager
+    assert old_manager.closed is True
 
 
 def test_reload_user_scripts_drops_closed_page_targets(monkeypatch):
@@ -418,6 +474,7 @@ def test_launch_and_inject_returns_windows_packaged_process_id(monkeypatch, tmp_
     server, proc = launcher.launch_and_inject(None, None, tmp_path / "backups", 9229, 57321)
 
     assert server.port == 57321
+    assert isinstance(server.runtime, launcher.CodexPlusRuntime)
     assert proc == 1234
 
 
@@ -427,6 +484,26 @@ def test_shutdown_helper_leaves_attached_helper_running():
     launcher.shutdown_helper(server)
 
     assert server.port == 57321
+
+
+def test_shutdown_helper_closes_current_runtime_injection_manager():
+    server = FakeServer()
+    manager = FakeInjectionManager()
+    runtime = launcher.CodexPlusRuntime(
+        "ws://page",
+        type("Scripts", (), {"build_enabled_bundle": lambda self: ""})(),
+        9229,
+        injection_manager=manager,
+    )
+    server.runtime = runtime
+
+    launcher.shutdown_helper(server)
+
+    assert manager.closed is True
+    assert runtime.injection_manager is None
+    assert runtime.bridge_socket is None
+    assert server.shutdown_called is True
+    assert server.server_close_called is True
 
 
 def test_launch_and_inject_runs_provider_sync_before_launch_when_enabled(monkeypatch, tmp_path):
@@ -788,7 +865,7 @@ def test_check_and_reinject_bridge_reinjects_missing_bridge(monkeypatch, tmp_pat
     runtime = launcher.CodexPlusRuntime("ws://page", FakeUserScripts(), 9229)
     runtime.add_websocket_url("ws://page")
     reinjected = []
-    monkeypatch.setattr(launcher, "evaluate_script", lambda websocket_url, script: {"result": {"result": {"value": False}}})
+    monkeypatch.setattr(launcher, "evaluate_script", lambda websocket_url, script, **kwargs: {"result": {"result": {"value": False}}})
     monkeypatch.setattr(launcher, "inject_with_retry", lambda *args, **kwargs: reinjected.append(args) or {"result": {}})
 
     did_reinject = launcher.check_and_reinject_bridge(
@@ -814,7 +891,7 @@ def test_check_and_reinject_bridge_skips_when_bridge_exists(monkeypatch, tmp_pat
 
     runtime = launcher.CodexPlusRuntime("ws://page", FakeUserScripts(), 9229)
     runtime.add_websocket_url("ws://page")
-    monkeypatch.setattr(launcher, "evaluate_script", lambda websocket_url, script: {"result": {"result": {"value": True}}})
+    monkeypatch.setattr(launcher, "evaluate_script", lambda websocket_url, script, **kwargs: {"result": {"result": {"value": True}}})
     monkeypatch.setattr(launcher, "inject_with_retry", lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("should not reinject")))
 
     did_reinject = launcher.check_and_reinject_bridge(

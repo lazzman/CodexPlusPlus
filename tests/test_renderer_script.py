@@ -389,6 +389,16 @@ def test_renderer_script_backend_repair_uses_bridge_timeout_and_http_fallback():
     assert "postHelperJson(path, payload, 5000)" in text
     assert "helperFetch(path, options, timeoutMs)" in text
     assert "后端已断开" in text
+    assert "window.__codexPlusBackendRuntimeId" in text
+    assert "codexPlusBackendRequestId" in text
+    assert "isCurrentBackendRuntime()" in text
+    assert "requestId !== codexPlusBackendRequestId" in text
+    assert "window.__codexPlusBackendRepairRequestedAt = Date.now()" in text
+    assert "withTimeout(postJson(\"/backend/repair\", {}), 3000" in text
+    assert "nextStatus = { status: \"failed\", message: \"后端修复失败\" };\n    }\n    if (nextStatus?.status !== \"ok\")" in text
+    assert "bindingPostJson(\"/backend/repair\", {})" in text
+    assert "window.codexSessionDeleteV2" in text
+    assert "ensureBridgeCallbacks()" in text
 
 
 def test_renderer_script_archive_scan_relevance_has_text_fallback():
@@ -761,9 +771,13 @@ def test_renderer_script_includes_user_script_manager_ui_contract():
     assert "renderBackendStatus" in text
     assert "scheduleBackendHeartbeat" in text
     assert "setInterval(checkBackendStatus, 5000)" in text
+    assert "window.__codexPlusBackendRuntimeId" in text
+    assert "codexPlusBackendRequestId" in text
+    assert "isCurrentBackendRuntime()" in text
     assert "scheduleBackendHeartbeat();\n    loadUserScripts();" not in text
     assert "installCodexPlusMenu();\n    scheduleBackendHeartbeat();" in text
     assert "withTimeout" in text
+    assert "bindingPostJson(\"/backend/repair\", {})" in text
     assert "postHelperJson" in text
     assert "new Promise((resolve) => setTimeout(() => resolve(timeoutResult), timeoutMs))" in text
     assert "data-codex-backend-indicator" in text

@@ -5,7 +5,7 @@ from pathlib import Path
 import codex_session_delete.cdp as cdp
 import websocket
 
-from codex_session_delete.cdp import BRIDGE_BINDING_NAME, InjectionResult, _bridge_loop, add_script_to_new_documents, build_bridge_script, codex_page_targets, evaluate_user_scripts, inject_file_into_all_pages, install_bridge, list_targets, open_devtools, pick_page_target
+from codex_session_delete.cdp import BRIDGE_BINDING_NAME, InjectionResult, MultiPageInjection, _bridge_loop, add_script_to_new_documents, build_bridge_script, codex_page_targets, evaluate_script, evaluate_user_scripts, inject_file_into_all_pages, install_bridge, list_targets, open_devtools, pick_page_target
 
 
 class TimeoutThenMessageSocket:
@@ -41,6 +41,22 @@ class SingleResponseSocket:
 
     def close(self):
         self.closed = True
+
+
+class FakeBridgeSocket:
+    def __init__(self):
+        self.closed = False
+
+    def close(self):
+        self.closed = True
+
+
+class FakeWatcherThread:
+    def __init__(self):
+        self.join_timeout = None
+
+    def join(self, timeout=None):
+        self.join_timeout = timeout
 
 
 class BridgeInstallSocket:
@@ -99,6 +115,7 @@ def test_list_targets_bypasses_proxy_environment(monkeypatch):
     class FakeSession:
         def __init__(self):
             self.trust_env = True
+            self.closed = False
 
         def get(self, url, timeout):
             seen["trust_env"] = self.trust_env
@@ -106,13 +123,19 @@ def test_list_targets_bypasses_proxy_environment(monkeypatch):
             seen["timeout"] = timeout
             return FakeResponse()
 
-    monkeypatch.setattr("codex_session_delete.cdp.requests.Session", FakeSession)
+        def close(self):
+            self.closed = True
+            seen["closed"] = True
+
+    session = FakeSession()
+    monkeypatch.setattr("codex_session_delete.cdp.requests.Session", lambda: session)
 
     assert list_targets(9229) == [{"type": "page"}]
     assert seen == {
         "trust_env": False,
         "url": "http://127.0.0.1:9229/json",
         "timeout": 3,
+        "closed": True,
     }
 
 
@@ -131,9 +154,44 @@ def test_build_bridge_script_installs_binding_callbacks():
     assert "window.codexSessionDelete" in script
     assert "window.__codexSessionDeleteResolve" in script
     assert "window.__codexSessionDeleteReject" in script
+    assert "window.__codexSessionDeleteCallbacks instanceof Map" in script
+    assert "Number.isFinite(window.__codexSessionDeleteSeq)" in script
     assert "timeoutMs = 30000" in script
     assert "\\u540e\\u7aef\\u8bf7\\u6c42\\u8d85\\u65f6" in script
     assert "clearTimeout(callback.timeout)" in script
+
+
+def test_evaluate_script_supports_await_promise_and_timeout(monkeypatch):
+    ws = SingleResponseSocket()
+    calls = []
+    monkeypatch.setattr(websocket, "create_connection", lambda url, timeout: calls.append((url, timeout)) or ws)
+
+    evaluate_script("ws://page", "Promise.resolve(true)", await_promise=True, timeout=2.5)
+
+    assert calls == [("ws://page", 2.5)]
+    assert ws.sent[0]["params"]["awaitPromise"] is True
+    assert ws.sent[0]["params"]["expression"] == "Promise.resolve(true)"
+    assert ws.closed is True
+
+
+def test_multi_page_injection_close_stops_watcher_and_bridge_sockets():
+    first_socket = FakeBridgeSocket()
+    second_socket = FakeBridgeSocket()
+    watcher = FakeWatcherThread()
+    manager = MultiPageInjection(
+        injections={
+            "main": InjectionResult("ws://main", first_socket, {"status": "ok"}),
+            "child": InjectionResult("ws://child", second_socket, {"status": "ok"}),
+        },
+        watcher_thread=watcher,
+    )
+
+    manager.close()
+
+    assert manager.stop_event.is_set()
+    assert first_socket.closed is True
+    assert second_socket.closed is True
+    assert watcher.join_timeout == 1
 
 
 def test_bridge_binding_name_is_versioned_for_reinjection():

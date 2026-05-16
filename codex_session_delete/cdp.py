@@ -49,13 +49,32 @@ class MultiPageInjection:
             first = next(iter(self.injections.values()), None)
         return first.result if first else None
 
+    def close(self) -> None:
+        self.stop_event.set()
+        with self.lock:
+            sockets = [injection.bridge_socket for injection in self.injections.values() if injection.bridge_socket]
+            watcher_thread = self.watcher_thread
+        for socket in sockets:
+            try:
+                socket.close()
+            except Exception:
+                pass
+        if watcher_thread is not None:
+            try:
+                watcher_thread.join(timeout=1)
+            except RuntimeError:
+                pass
+
 
 def list_targets(port: int) -> list[dict[str, object]]:
     session = requests.Session()
     session.trust_env = False
-    response = session.get(f"http://127.0.0.1:{port}/json", timeout=3)
-    response.raise_for_status()
-    return response.json()
+    try:
+        response = session.get(f"http://127.0.0.1:{port}/json", timeout=3)
+        response.raise_for_status()
+        return response.json()
+    finally:
+        session.close()
 
 
 def codex_page_targets(targets: list[dict[str, object]]) -> list[dict[str, object]]:
@@ -77,13 +96,13 @@ def pick_page_target(targets: list[dict[str, object]]) -> dict[str, object]:
     raise RuntimeError("No injectable Codex page target found")
 
 
-def evaluate_script(websocket_url: str, script: str) -> dict[str, object]:
-    ws = websocket.create_connection(websocket_url, timeout=5)
+def evaluate_script(websocket_url: str, script: str, *, await_promise: bool = False, timeout: float = 5) -> dict[str, object]:
+    ws = websocket.create_connection(websocket_url, timeout=timeout)
     try:
         payload = {
             "id": 1,
             "method": "Runtime.evaluate",
-            "params": {"expression": script, "awaitPromise": False, "allowUnsafeEvalBlockedByCSP": True},
+            "params": {"expression": script, "awaitPromise": await_promise, "allowUnsafeEvalBlockedByCSP": True},
         }
         ws.send(json.dumps(payload))
         while True:
@@ -132,8 +151,8 @@ def _add_script_to_new_documents_on_socket(ws: websocket.WebSocket, script: str,
 def build_bridge_script(binding_name: str) -> str:
     return f"""
 (() => {{
-  window.__codexSessionDeleteCallbacks = new Map();
-  window.__codexSessionDeleteSeq = 0;
+  window.__codexSessionDeleteCallbacks = window.__codexSessionDeleteCallbacks instanceof Map ? window.__codexSessionDeleteCallbacks : new Map();
+  window.__codexSessionDeleteSeq = Number.isFinite(window.__codexSessionDeleteSeq) ? window.__codexSessionDeleteSeq : 0;
   window.__codexSessionDeleteResolve = (id, result) => {{
     const callback = window.__codexSessionDeleteCallbacks.get(id);
     if (!callback) return;
@@ -271,6 +290,8 @@ def _bridge_loop(ws: websocket.WebSocket, handler: BridgeHandler) -> None:
         except websocket.WebSocketTimeoutException:
             continue
         except Exception as exc:
+            if getattr(ws, "connected", True) is False:
+                return
             _log_bridge_error(f"bridge loop stopped: {exc}")
             return
         if message.get("method") != "Runtime.bindingCalled":
@@ -284,7 +305,10 @@ def _bridge_loop(ws: websocket.WebSocket, handler: BridgeHandler) -> None:
         except Exception as exc:
             request_id = str(locals().get("payload", {}).get("id", ""))
             if request_id:
-                _reject_bridge(ws, request_id, str(exc))
+                try:
+                    _reject_bridge(ws, request_id, str(exc))
+                except Exception:
+                    return
 
 
 def _log_bridge_error(message: str) -> None:

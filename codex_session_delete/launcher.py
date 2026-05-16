@@ -77,6 +77,7 @@ class ApiFirstDeleteService:
 
 class InjectedHelperServer(HelperServer):
     bridge_socket: Any = None
+    runtime: Any = None
 
 
 @dataclass(frozen=True)
@@ -103,6 +104,7 @@ class CodexPlusRuntime:
     service: ApiFirstDeleteService | None = None
     export_service: MarkdownExportService | None = None
     bridge_socket: Any = None
+    injection_manager: Any = None
     websocket_urls: set[str] = field(default_factory=set)
     lock: threading.Lock = field(default_factory=threading.Lock)
     repair_lock: threading.Lock = field(default_factory=threading.Lock)
@@ -111,6 +113,19 @@ class CodexPlusRuntime:
         with self.lock:
             self.websocket_url = websocket_url
             self.websocket_urls.add(websocket_url)
+
+    def replace_injection_manager(self, injection_manager: Any) -> None:
+        replacement_urls = self._injection_manager_urls(injection_manager)
+        primary_url = str(getattr(injection_manager, "websocket_url", "") or "")
+        with self.lock:
+            old_manager = self.injection_manager or self.bridge_socket
+            self.injection_manager = injection_manager
+            self.bridge_socket = injection_manager
+            if replacement_urls:
+                self.websocket_urls = replacement_urls
+                self.websocket_url = primary_url if primary_url in replacement_urls else next(iter(replacement_urls))
+        if old_manager is not None and old_manager is not injection_manager:
+            self._close_injection_manager(old_manager)
 
     def reload_user_scripts(self) -> dict[str, object]:
         script = self.user_scripts.build_enabled_bundle()
@@ -143,9 +158,8 @@ class CodexPlusRuntime:
         with self.repair_lock:
             if self.debug_port is None or self.helper_port is None or self.script_path is None or self.service is None or self.export_service is None:
                 return {"status": "failed", "message": "后端修复失败：运行时配置不完整"}
-            self._close_bridge_socket()
             try:
-                self.bridge_socket = inject_with_retry(
+                inject_with_retry(
                     self.debug_port,
                     self.script_path,
                     self.helper_port,
@@ -164,10 +178,23 @@ class CodexPlusRuntime:
 
     def codex_model_catalog(self) -> dict[str, object]:
         return read_codex_model_catalog()
-    def _close_bridge_socket(self) -> None:
-        socket_obj = self.bridge_socket
-        self.bridge_socket = None
+
+    def close_injection_manager(self) -> None:
+        with self.lock:
+            manager = self.injection_manager or self.bridge_socket
+            self.injection_manager = None
+            self.bridge_socket = None
+        self._close_injection_manager(manager)
+
+    @staticmethod
+    def _close_injection_manager(socket_obj: Any) -> None:
         if socket_obj is None:
+            return
+        if hasattr(socket_obj, "close"):
+            try:
+                socket_obj.close()
+            except Exception:
+                pass
             return
         stop_event = getattr(socket_obj, "stop_event", None)
         if stop_event is not None:
@@ -184,11 +211,15 @@ class CodexPlusRuntime:
                         bridge_socket.close()
                     except Exception:
                         pass
-        if hasattr(socket_obj, "close"):
-            try:
-                socket_obj.close()
-            except Exception:
-                pass
+
+    @staticmethod
+    def _injection_manager_urls(injection_manager: Any) -> set[str]:
+        injections = getattr(injection_manager, "injections", None)
+        if isinstance(injections, dict):
+            urls = {str(getattr(injection, "websocket_url", "")) for injection in injections.values()}
+            return {url for url in urls if url}
+        websocket_url = str(getattr(injection_manager, "websocket_url", "") or "")
+        return {websocket_url} if websocket_url else set()
 
 
 def codex_home_path() -> Path:
@@ -869,6 +900,19 @@ def start_or_attach_helper(
 def shutdown_helper(server: HelperServer) -> None:
     if isinstance(server, AttachedHelperServer):
         return
+    runtime = getattr(server, "runtime", None)
+    if runtime is not None and hasattr(runtime, "close_injection_manager"):
+        try:
+            runtime.close_injection_manager()
+        except Exception:
+            pass
+    else:
+        bridge_socket = getattr(server, "bridge_socket", None)
+        if bridge_socket is not None and hasattr(bridge_socket, "close"):
+            try:
+                bridge_socket.close()
+            except Exception:
+                pass
     server.shutdown()
     server.server_close()
 
@@ -899,7 +943,7 @@ def inject_with_retry(
             )
             if injection.websocket_url:
                 runtime.add_websocket_url(injection.websocket_url)
-            runtime.bridge_socket = injection
+            runtime.replace_injection_manager(injection)
             _log_runtime_event(f"injected renderer bridge debug_port={debug_port} helper_port={helper_port}")
             return injection
         except Exception as exc:
@@ -942,21 +986,53 @@ def check_and_reinject_bridge(
         websocket_urls = list(runtime.websocket_urls or ({runtime.websocket_url} if runtime.websocket_url else set()))
     if not websocket_urls:
         return False
-    reinjected = False
+    needs_reinject = False
     for websocket_url in websocket_urls:
         try:
-            result = evaluate_script(websocket_url, "typeof window.__codexSessionDeleteBridge === 'function'")
+            result = evaluate_script(
+                websocket_url,
+                """
+new Promise((resolve) => {
+  const bridge = window.__codexSessionDeleteBridge;
+  if (typeof bridge !== "function") {
+    resolve(false);
+    return;
+  }
+  let settled = false;
+  const finish = (value) => {
+    if (settled) return;
+    settled = true;
+    clearTimeout(timer);
+    resolve(value);
+  };
+  const timer = setTimeout(() => finish(false), 1000);
+  try {
+    bridge("/backend/status", {})
+      .then((result) => finish(!!result && result.status === "ok"))
+      .catch(() => finish(false));
+  } catch (_) {
+    finish(false);
+  }
+})
+""",
+                await_promise=True,
+                timeout=3,
+            )
             if result.get("result", {}).get("result", {}).get("value"):
                 continue
-            _log_runtime_event(f"renderer bridge missing; reinjecting debug_port={debug_port} helper_port={helper_port}")
+            _log_runtime_event(f"renderer bridge roundtrip failed; reinjecting debug_port={debug_port} helper_port={helper_port}")
         except Exception as exc:
             _log_runtime_event(f"bridge health check failed; reinjecting debug_port={debug_port} helper_port={helper_port}: {exc}")
-        try:
-            inject_with_retry(debug_port, script_path, helper_port, service, export_service, runtime, attempts=3, delay=0.5)
-            reinjected = True
-        except Exception as exc:
-            _log_runtime_event(f"bridge reinjection failed debug_port={debug_port} helper_port={helper_port}: {exc}")
-    return reinjected
+        needs_reinject = True
+        break
+    if not needs_reinject:
+        return False
+    try:
+        inject_with_retry(debug_port, script_path, helper_port, service, export_service, runtime, attempts=3, delay=0.5)
+        return True
+    except Exception as exc:
+        _log_runtime_event(f"bridge reinjection failed debug_port={debug_port} helper_port={helper_port}: {exc}")
+        return False
 
 
 def launch_and_inject(
@@ -997,6 +1073,8 @@ def launch_and_inject(
         port=helper_port,
         backend_handler=lambda path, payload: handle_bridge_request(service, export_service, path, payload, runtime),
     )
+    if not isinstance(server, AttachedHelperServer):
+        setattr(server, "runtime", runtime)
     runtime.helper_port = server.port
     codex_proc = None
     try:
