@@ -12,7 +12,6 @@
   const bulkMoveTriggerClass = "codex-bulk-move-trigger";
   const actionButtonClass = "codex-session-action-button";
   const actionGroupClass = "codex-session-actions";
-  const archiveActionGroupClass = "codex-archive-row-actions";
   const timelineClass = "codex-conversation-timeline";
   const timelineTrackClass = "codex-conversation-timeline-track";
   const timelineMarkerClass = "codex-conversation-timeline-marker";
@@ -37,14 +36,13 @@
   const chatsSortRefreshIntervalMs = 1500;
   const chatsSortDbRefreshIntervalMs = 5000;
   const styleId = "codex-delete-style";
-  const codexDeleteStyleVersion = "10";
+  const codexDeleteStyleVersion = "11";
   const codexPlusMenuId = "codex-plus-menu";
   const codexPlusMenuFloatingClass = "codex-plus-menu-floating";
   const codexDeleteVersion = "8";
   const codexExportVersion = "2";
   const codexProjectMoveVersion = "2";
-  const codexActionGroupVersion = "3";
-  const codexArchiveRowActionsVersion = "3";
+  const codexActionGroupVersion = "4";
   const codexArchiveDeleteAllVersion = "4";
   const codexRetryAttemptControlsVersion = "1";
   const retryAttemptLimitValue = 100;
@@ -144,11 +142,12 @@
       }
       .${actionGroupClass} {
         position: absolute;
-        right: 28px;
+        right: var(--codex-session-action-right, 48px);
         top: 50%;
         transform: translateY(-50%);
         z-index: 20;
         opacity: 0;
+        pointer-events: none;
         display: inline-flex !important;
         align-items: center;
         justify-content: center;
@@ -158,6 +157,9 @@
         padding: 0;
         border: 0;
         background: transparent;
+      }
+      [data-codex-session-action-container="true"] {
+        position: relative !important;
       }
       .${actionButtonClass} {
         display: inline-flex !important;
@@ -318,8 +320,14 @@
       }
       [data-codex-locally-deleted="true"] { display: none !important; }
       [data-codex-locally-deleted="true"] { display: none !important; }
-      [data-codex-delete-row="true"]:hover .${actionGroupClass} { opacity: 1; }
-      [data-codex-delete-row="true"].codex-archive-confirm-visible .${actionGroupClass} { right: 66px; }
+      [data-codex-delete-row="true"]:hover .${actionGroupClass},
+      [data-codex-delete-row="true"]:focus-within .${actionGroupClass} {
+        opacity: 1;
+        pointer-events: auto;
+      }
+      [data-codex-delete-row="true"].codex-archive-confirm-visible .${actionGroupClass} {
+        right: var(--codex-session-action-confirm-right, 66px);
+      }
       .${projectMoveOverlayClass} {
         position: fixed;
         inset: 0;
@@ -412,35 +420,32 @@
         opacity: 1 !important;
         outline: none !important;
       }
-      .${archiveActionGroupClass} {
+      [data-codex-archive-row-action] {
         display: inline-flex !important;
         align-items: center !important;
         justify-content: center !important;
-        gap: 6px !important;
-        flex: 0 0 auto !important;
-        margin-left: auto !important;
-        padding: 4px !important;
-        min-height: 28px !important;
-        border: 1px solid transparent !important;
-        border-radius: 14px !important;
-        background: var(--codex-plus-archive-background) !important;
-      }
-      .${archiveActionGroupClass} [data-codex-archive-row-action] {
-        width: 20px !important;
-        height: 20px !important;
-        min-width: 20px !important;
-        min-height: 20px !important;
-        padding: 0 !important;
+        min-height: var(--codex-archive-native-height, 28px) !important;
+        margin-left: var(--codex-archive-native-gap, 4px) !important;
+        padding: var(--codex-archive-native-padding, 0 8px) !important;
+        border: var(--codex-archive-native-border, 1px solid transparent) !important;
+        border-radius: var(--codex-archive-native-radius, 999px) !important;
+        background: var(--codex-archive-native-background, transparent) !important;
         color: var(--codex-plus-archive-color) !important;
-        opacity: .68 !important;
+        font: var(--codex-archive-native-font, 13px system-ui, sans-serif) !important;
+        line-height: var(--codex-archive-native-line-height, 1) !important;
+        white-space: nowrap !important;
+        cursor: pointer !important;
+        opacity: var(--codex-archive-native-opacity, 1) !important;
       }
-      .${archiveActionGroupClass} [data-codex-archive-row-action]:hover,
-      .${archiveActionGroupClass} [data-codex-archive-row-action]:focus-visible {
+      [data-codex-archive-row-action]:hover,
+      [data-codex-archive-row-action]:focus-visible {
+        background: var(--codex-archive-native-hover-background, var(--codex-plus-archive-hover-background)) !important;
+        border-color: var(--codex-archive-native-hover-border, var(--codex-plus-archive-hover-border)) !important;
         color: var(--codex-plus-archive-hover-color) !important;
-        opacity: 1 !important;
+        outline: none !important;
       }
-      .${archiveActionGroupClass} [data-codex-archive-row-action="delete"]:hover,
-      .${archiveActionGroupClass} [data-codex-archive-row-action="delete"]:focus-visible,
+      [data-codex-archive-row-action="delete"]:hover,
+      [data-codex-archive-row-action="delete"]:focus-visible,
       [data-codex-archive-delete-all="true"]:hover,
       [data-codex-archive-delete-all="true"]:focus-visible {
         background: var(--codex-plus-danger-background) !important;
@@ -4248,18 +4253,6 @@
     },
   };
 
-  const archiveActionButtonConfigs = {
-    unarchive: {
-      label: "取消归档对话",
-      icon: '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 12h14" /><path d="m10 5 7 7-7 7" /><path d="M21 5v14" /></svg>',
-    },
-    export: sessionActionButtonConfigs.export,
-    delete: {
-      ...sessionActionButtonConfigs.delete,
-      label: "删除归档对话",
-    },
-  };
-
   function configureSessionActionButton(button, kind, busy = false) {
     const config = sessionActionButtonConfigs[kind];
     if (!config) return;
@@ -4268,17 +4261,6 @@
     button.dataset.codexActionIconVersion = "1";
     button.setAttribute("aria-label", label);
     button.title = label;
-    button.innerHTML = config.icon;
-  }
-
-  function configureArchiveActionButton(button, kind) {
-    const config = archiveActionButtonConfigs[kind];
-    if (!config) return;
-    button.dataset.codexArchiveRowAction = kind;
-    button.dataset.codexActionKind = kind;
-    button.dataset.codexActionIconVersion = "1";
-    button.setAttribute("aria-label", config.label);
-    button.title = config.label;
     button.innerHTML = config.icon;
   }
 
@@ -4312,6 +4294,8 @@
     if (!ref.session_id) return;
     row.dataset.codexDeleteRow = "true";
     row.dataset.codexProjectMoveRow = String(!!settings.projectMove);
+    const root = rowContentRoot(row) || row;
+    root.dataset.codexSessionActionContainer = "true";
     const group = document.createElement("div");
     group.className = actionGroupClass;
     group.dataset.codexActionGroupVersion = codexActionGroupVersion;
@@ -4351,7 +4335,7 @@
       group.appendChild(deleteButton);
       setTimeout(() => refreshActionButton(deleteButton, row, openDeleteConfirm), 0);
     }
-    row.appendChild(group);
+    root.appendChild(group);
   }
 
   function tryAttachButton(row) {
@@ -4393,6 +4377,7 @@
     const titleNode = row.querySelector(".truncate.text-base, [data-thread-title], a, div");
     const title = ((titleNode || row).textContent || "Untitled session")
       .replace("取消归档", "")
+      .replace("导出", "")
       .replace("删除", "")
       .replace(/\d{4}年\d{1,2}月\d{1,2}日.*$/, "")
       .replace(/\s+·\s+.*$/, "")
@@ -4515,12 +4500,8 @@
     return Array.from(row.querySelectorAll("button")).find(isUnarchiveButton);
   }
 
-  function archiveActionGroupFromRow(row) {
-    return row.querySelector(`.${archiveActionGroupClass}`);
-  }
-
   function restoreArchiveUnarchiveButton(unarchiveButton) {
-    if (!unarchiveButton?.isConnected || unarchiveButton.dataset.codexArchiveRowAction !== "unarchive") return;
+    if (!unarchiveButton?.isConnected) return;
     unarchiveButton.classList.remove(actionButtonClass, "codex-archive-row-button");
     delete unarchiveButton.dataset.codexArchiveRowAction;
     delete unarchiveButton.dataset.codexActionKind;
@@ -4530,52 +4511,41 @@
     unarchiveButton.textContent = "取消归档";
   }
 
-  function removeArchiveRowActionGroupIfEmpty(row) {
-    const group = archiveActionGroupFromRow(row);
-    if (!group) return;
-    const unarchiveButton = archiveUnarchiveButtonFromRow(group);
-    if (unarchiveButton) {
-      group.insertAdjacentElement("beforebegin", unarchiveButton);
-      restoreArchiveUnarchiveButton(unarchiveButton);
-    }
-    group.remove();
+  function cleanupLegacyArchiveRowActionGroups(row) {
+    row.querySelectorAll(".codex-archive-row-actions").forEach((group) => {
+      const unarchiveButton = archiveUnarchiveButtonFromRow(group);
+      if (unarchiveButton) {
+        group.insertAdjacentElement("beforebegin", unarchiveButton);
+        restoreArchiveUnarchiveButton(unarchiveButton);
+      }
+      group.remove();
+    });
+    Array.from(row.querySelectorAll('[data-codex-archive-row-action="unarchive"]')).forEach(restoreArchiveUnarchiveButton);
   }
 
-  function ensureArchiveRowActionGroup(row, unarchiveButton) {
-    let group = archiveActionGroupFromRow(row);
-    if (!group) {
-      group = document.createElement("div");
-      group.className = archiveActionGroupClass;
-      unarchiveButton.insertAdjacentElement("beforebegin", group);
-    }
-    group.dataset.codexArchiveRowActionsVersion = codexArchiveRowActionsVersion;
-    if (unarchiveButton.parentElement !== group) group.appendChild(unarchiveButton);
-    return group;
+  function configureArchiveTextButton(button, kind, label) {
+    button.dataset.codexArchiveRowAction = kind;
+    button.setAttribute("aria-label", label);
+    button.title = label;
+    button.textContent = kind === "export" ? "导出" : "删除";
   }
 
   function attachArchivedPageDeleteButton(row) {
     const settings = codexPlusSettings();
+    cleanupLegacyArchiveRowActionGroups(row);
     row.querySelectorAll('[data-codex-archive-row-action="export"], [data-codex-archive-row-action="delete"]').forEach((button) => button.remove());
     row.dataset.codexArchiveDeleteRow = "false";
     const unarchiveButton = archiveUnarchiveButtonFromRow(row);
-    if (!unarchiveButton) {
-      removeArchiveRowActionGroupIfEmpty(row);
-      return;
-    }
-    if (!settings.sessionDelete && !settings.markdownExport) {
-      removeArchiveRowActionGroupIfEmpty(row);
-      return;
-    }
+    if (!unarchiveButton) return;
+    restoreArchiveUnarchiveButton(unarchiveButton);
+    if (!settings.sessionDelete && !settings.markdownExport) return;
     row.dataset.codexArchiveDeleteRow = "true";
-    row.dataset.codexArchiveRowActionsVersion = codexArchiveRowActionsVersion;
-    const group = ensureArchiveRowActionGroup(row, unarchiveButton);
-    unarchiveButton.classList.add(actionButtonClass, "codex-archive-row-button");
-    configureArchiveActionButton(unarchiveButton, "unarchive");
+    let insertAfter = unarchiveButton;
     if (settings.markdownExport) {
       const exportButton = document.createElement("button");
       exportButton.type = "button";
-      exportButton.className = `${actionButtonClass} codex-archive-row-button ${exportButtonClass}`;
-      configureArchiveActionButton(exportButton, "export");
+      exportButton.className = `codex-archive-row-button ${exportButtonClass}`;
+      configureArchiveTextButton(exportButton, "export", "导出 Markdown");
       ["pointerdown", "mousedown", "mouseup", "touchstart"].forEach((eventName) => {
         exportButton.addEventListener(eventName, stopArchivedButtonEvent, true);
       });
@@ -4588,13 +4558,14 @@
         }
         await exportMarkdown(ref);
       }, true);
-      group.appendChild(exportButton);
+      insertAfter.insertAdjacentElement("afterend", exportButton);
+      insertAfter = exportButton;
     }
     if (settings.sessionDelete) {
       const deleteButton = document.createElement("button");
       deleteButton.type = "button";
-      deleteButton.className = `${actionButtonClass} codex-archive-row-button ${buttonClass}`;
-      configureArchiveActionButton(deleteButton, "delete");
+      deleteButton.className = "codex-archive-row-button";
+      configureArchiveTextButton(deleteButton, "delete", "删除归档对话");
       ["pointerdown", "mousedown", "mouseup", "touchstart"].forEach((eventName) => {
         deleteButton.addEventListener(eventName, stopArchivedButtonEvent, true);
       });
@@ -4616,7 +4587,7 @@
           showToast(result.message || "删除失败", null);
         }
       }, true);
-      group.appendChild(deleteButton);
+      insertAfter.insertAdjacentElement("afterend", deleteButton);
     }
   }
 

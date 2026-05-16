@@ -39,10 +39,12 @@ def test_renderer_script_supports_codex_sidebar_thread_attributes():
 def test_renderer_script_positions_delete_button_without_affecting_layout():
     text = Path("codex_session_delete/inject/renderer-inject.js").read_text(encoding="utf-8")
     assert "position: absolute" in text
-    assert "right: 28px" in text
+    assert "right: var(--codex-session-action-right, 48px)" in text
     assert "top: 50%" in text
     assert "transform: translateY(-50%)" in text
     assert "display: inline-flex" in text
+    assert "[data-codex-delete-row=\"true\"]:focus-within .${actionGroupClass}" in text
+    assert "right: var(--codex-session-action-confirm-right, 66px)" in text
 
 
 
@@ -474,6 +476,15 @@ def test_renderer_script_sidebar_actions_are_accessible_icon_buttons():
     assert "configureSessionActionButton(moveButton, \"move\")" in text
     assert "configureSessionActionButton(exportButton, \"export\")" in text
     assert "configureSessionActionButton(deleteButton, \"delete\")" in text
+    assert "const root = rowContentRoot(row) || row" in text
+    assert "root.dataset.codexSessionActionContainer = \"true\"" in text
+    assert "[data-codex-session-action-container=\"true\"]" in text
+    assert "position: relative !important" in text
+    assert "root.appendChild(group)" in text
+    assert "row.appendChild(group)" not in text
+    assert "right: var(--codex-session-action-right, 48px)" in text
+    assert "pointer-events: none;" in text
+    assert "pointer-events: auto;" in text
     assert ".${actionButtonClass} svg" in text
     assert "data-codex-action-kind=\"delete\"]:hover" in text
     assert "--codex-plus-action-color" in text
@@ -505,8 +516,9 @@ def test_renderer_script_removes_orphaned_projected_rows_when_thread_is_missing(
 
     text = Path("codex_session_delete/inject/renderer-inject.js").read_text(encoding="utf-8")
     assert "updateDeleteButtonOffsets" in text
-    assert "codexDeleteStyleVersion = \"10\"" in text
-    assert "right: 66px" in text
+    assert "codexDeleteStyleVersion = \"11\"" in text
+    assert "codexActionGroupVersion = \"4\"" in text
+    assert "right: var(--codex-session-action-confirm-right, 66px)" in text
     assert "确认" in text
     assert "归档对话" in text
     assert "button.getAttribute(\"aria-label\")" in text
@@ -594,35 +606,40 @@ def test_renderer_script_removes_orphaned_projected_rows_when_thread_is_missing(
     assert "position: \"fixed\"" in text
     assert "data-codex-archive-page-row" in text
     assert "data-app-action-sidebar-thread-id" in text
+    archive_attach_start = text.index("function attachArchivedPageDeleteButton")
+    archive_attach_end = text.index("\n\n  function installArchivedDeleteAllButton", archive_attach_start)
+    archive_attach_code = text[archive_attach_start:archive_attach_end]
     assert "取消归档" in text
     assert "已归档对话" in text
     assert "archiveRowFromUnarchiveButton" in text
     assert "[role=\"listitem\"], [role=\"row\"]" in text
     assert "Archived conversations" in text
     assert "data-codex-archive-row-action" in text
-    assert "archiveActionGroupClass = \"codex-archive-row-actions\"" in text
-    assert "codexArchiveRowActionsVersion = \"3\"" in text
-    assert "archiveActionButtonConfigs" in text
-    assert "label: \"取消归档对话\"" in text
-    assert "export: sessionActionButtonConfigs.export" in text
-    assert "...sessionActionButtonConfigs.delete" in text
-    assert "function configureArchiveActionButton(button, kind)" in text
+    assert "archiveActionGroupClass" not in text
+    assert "archiveActionButtonConfigs" not in text
+    assert "function configureArchiveActionButton(button, kind)" not in text
+    assert "codexArchiveRowActionsVersion" not in text
+    assert "function cleanupLegacyArchiveRowActionGroups(row)" in text
+    assert "row.querySelectorAll(\".codex-archive-row-actions\").forEach((group) => {" in text
+    assert "group.insertAdjacentElement(\"beforebegin\", unarchiveButton)" in text
+    assert "group.remove()" in text
+    assert "function configureArchiveTextButton(button, kind, label)" in text
     assert "button.dataset.codexArchiveRowAction = kind" in text
-    assert "button.dataset.codexActionKind = kind" in text
-    assert "button.dataset.codexActionIconVersion = \"1\"" in text
-    assert "button.setAttribute(\"aria-label\", config.label)" in text
-    assert "button.title = config.label" in text
-    assert "button.innerHTML = config.icon" in text
+    assert "button.setAttribute(\"aria-label\", label)" in text
+    assert "button.title = label" in text
+    assert "button.textContent = kind === \"export\" ? \"导出\" : \"删除\"" in text
     assert "function archiveUnarchiveButtonFromRow(row)" in text
     assert "Array.from(row.querySelectorAll(\"button\")).find(isUnarchiveButton)" in text
-    assert "function ensureArchiveRowActionGroup(row, unarchiveButton)" in text
-    assert "unarchiveButton.insertAdjacentElement(\"beforebegin\", group)" in text
-    assert "if (unarchiveButton.parentElement !== group) group.appendChild(unarchiveButton)" in text
-    assert "configureArchiveActionButton(unarchiveButton, \"unarchive\")" in text
-    assert "configureArchiveActionButton(exportButton, \"export\")" in text
-    assert "configureArchiveActionButton(deleteButton, \"delete\")" in text
-    assert "group.appendChild(exportButton)" in text
-    assert "group.appendChild(deleteButton)" in text
+    assert "function ensureArchiveRowActionGroup(row, unarchiveButton)" not in text
+    assert "configureArchiveActionButton(unarchiveButton, \"unarchive\")" not in text
+    assert "configureArchiveTextButton(exportButton, \"export\", \"导出 Markdown\")" in archive_attach_code
+    assert "configureArchiveTextButton(deleteButton, \"delete\", \"删除归档对话\")" in archive_attach_code
+    assert "restoreArchiveUnarchiveButton(unarchiveButton)" in archive_attach_code
+    assert "unarchiveButton.textContent = \"取消归档\"" in text
+    assert "insertAfter.insertAdjacentElement(\"afterend\", exportButton)" in archive_attach_code
+    assert "insertAfter.insertAdjacentElement(\"afterend\", deleteButton)" in archive_attach_code
+    assert "group.appendChild(exportButton)" not in archive_attach_code
+    assert "group.appendChild(deleteButton)" not in archive_attach_code
     assert "installActionButtonEvents(row, unarchiveButton" not in text
     assert "const unarchiveButton = document.createElement(\"button\")" not in text
 
