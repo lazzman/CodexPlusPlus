@@ -1,7 +1,7 @@
 # PR 集成记录
 
-> 记录日期：2026-05-16
-> 当前工作分支：`codex/absorb-pr-122-128`，在既有稳定基础上手工吸收远程 PR 核心稳定性逻辑。
+> 记录日期：2026-05-17
+> 当前工作分支：`main`，在既有稳定基础上手工吸收远程 PR #109/#129 的 renderer 功能逻辑。
 
 本文档记录已进入稳定基线或当前集成分支的 PR、明确未合入的 PR，以及后续继续合并时的注意事项。
 
@@ -23,7 +23,7 @@
 | #30 优化删除确认与删除后页面稳定性 | 手工移植 | 删除确认改为按钮旁轻量确认；删除后隐藏/标记 React 管理的会话行而不是直接移除 DOM；本地 SQLite 删除时清理悬空 thread 引用。 | 已合入稳定基础。 |
 | #54 重试次数和尝试次数控制 | 手工移植 | 设置面板新增 best-of 尝试次数、provider 请求/流式重试上限、固定 1 秒重试间隔控制。 | 已合入稳定基础；属于有风险但已通过本轮回归的功能。 |
 | #104 CODEX_HOME 数据库路径 | 手工移植 | `launch --db` 默认值改为读取 `CODEX_HOME/state_5.sqlite`，避免多 profile 串用默认 `~/.codex/state_5.sqlite`。 | 同步补充 renderer 对失效投影会话的清理逻辑。 |
-| #109 插件入口解锁时序修复 | 手工移植 | 插件入口不再在扫描阶段提前污染模型选择上下文，改为捕获阶段按需切换 `authMethod`。 | 保留 #60 的自定义 provider / `NO_PROXY` 兼容逻辑。 |
+| #109 插件入口解锁时序修复 | 手工移植 | 插件入口不再在扫描阶段提前污染模型选择上下文，改为捕获阶段按需切换 `authMethod`；本轮补齐动态节点重建、锁定态属性变化后的重试刷新逻辑。 | 保留 #60 的自定义 provider / `NO_PROXY` 兼容逻辑；只移植 renderer 时序与扫描增强，不引入其它 PR。 |
 | #113 多 Codex 窗口注入 | 手工移植 | CDP 注入改为追踪多个 Codex page target，用户脚本重载会覆盖所有仍可用 target。 | 新增前台恢复扫描，减少新窗口/恢复前台漏注入。 |
 | #114 bridge 修复与 HTTP fallback | 手工移植 | bridge 增加超时、错误日志、后端状态/修复接口和 backend status HTTP fallback。 | 不开放删除/撤销 HTTP mutation；只为后端状态/修复提供 fallback。 |
 | #105 helper/bridge 稳定性 | 手工移植 | 健康 helper 复用、bridge watchdog、运行日志追加、CDP 优先存活判断。 | macOS 存活检测保持当前规范的 `pgrep -x Codex` 兜底。 |
@@ -31,6 +31,7 @@
 | #115 批量移动 | 手工移植 | 后端新增 `/move-thread-projectless` 并清空 SQLite/rollout `cwd`，前端支持批量选择、进度和失败记录。 | 保持现有单条项目移动投影与排序修正逻辑。 |
 | #122 CDP 多页面注入资源释放 | 手工摘取核心稳定性逻辑 | `MultiPageInjection.close()` 统一停止 watcher、关闭 bridge socket 并等待 watcher 线程；`/json` target 查询释放 requests session；helper shutdown 会关闭注入 manager。 | 未直接 merge PR；只吸收资源释放和安静退出相关逻辑，并保留当前批量导出、批量移动、用户脚本和 Provider 同步实现。 |
 | #128 bridge watchdog 与手动修复稳定性 | 手工摘取核心稳定性逻辑 | `evaluate_script()` 支持 `await_promise`/`timeout`；bridge 重入保留 pending callbacks；watchdog 执行真实 `/backend/status` roundtrip；renderer 后端状态使用 runtime/request id 防旧响应覆盖，手动修复失败后尝试底层 `codexSessionDeleteV2` binding fallback。 | 未吸收 #128 的图片、推荐内容或广告相关变更；helper mutation 安全边界保持不变。 |
+| #129 thread 切换浏览位置保留 | 手工移植 | renderer 为每个 thread 保存并恢复滚动位置，兼容 `.thread-scroll-container` 和 column-reverse，并通过设置项 `threadScrollRestore` 控制启停。 | 与本地批量导出、批量移动、Timeline、用户脚本和菜单版本逻辑手工整合；未修改版本号或发布资源。 |
 
 ## 本轮未合入
 
@@ -55,9 +56,10 @@
 
 ## 当前本地分支状态
 
-- `codex/absorb-pr-122-128`：当前实现分支，在 #104/#109/#113/#114/#105/#112/#115 稳定基础上手工吸收 #122/#128 的核心稳定性逻辑。
+- `main`：当前实现分支，已包含稳定基础修复、#122/#128 核心稳定性逻辑，以及本轮手工移植的 #109/#129 renderer 功能。
+- `codex/absorb-pr-122-128`：历史实现分支，在 #104/#109/#113/#114/#105/#112/#115 稳定基础上手工吸收 #122/#128 的核心稳定性逻辑。
 - `codex/absorb-remote-pr-features`：旧实现分支，手工吸收 #104/#109/#113/#114/#105/#112/#115。
-- `main`：已包含稳定基础修复提交 `afa8c72`。
+- `main`：本轮继续作为个人维护主线，不向 `origin` 推送。
 - `codex/stable-pr-integration`：仍指向同一个稳定基础提交 `afa8c72`，可作为稳定集成参考。
 - #91 / #71 相关分支已删除。
 
@@ -77,4 +79,9 @@
   - `python3 -m pytest tests/test_cdp.py tests/test_launcher_cli.py tests/test_renderer_script.py tests/test_helper_server.py -q`：`125 passed`。
   - `python3 -m pytest -q`：`301 passed`。
   - `node --check codex_session_delete/inject/renderer-inject.js`：通过。
+  - `git diff --check`：通过。
+- 2026-05-17 手工移植 #109/#129 后验证：
+  - `node --check codex_session_delete/inject/renderer-inject.js`：通过。
+  - `python3 -m pytest tests/test_renderer_script.py -q`：`38 passed`。
+  - `python3 -m pytest -q`：`302 passed`。
   - `git diff --check`：通过。

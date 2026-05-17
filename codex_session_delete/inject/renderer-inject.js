@@ -36,7 +36,7 @@
   const chatsSortRefreshIntervalMs = 1500;
   const chatsSortDbRefreshIntervalMs = 5000;
   const styleId = "codex-delete-style";
-  const codexDeleteStyleVersion = "13";
+  const codexDeleteStyleVersion = "16";
   const codexPlusMenuId = "codex-plus-menu";
   const codexPlusMenuFloatingClass = "codex-plus-menu-floating";
   const codexDeleteVersion = "8";
@@ -70,6 +70,7 @@
   const codexThreadScrollRouteHooksVersion = "dispatcher:2";
   const codexThreadScrollListenerVersion = "4";
   const codexThreadScrollUserIntentVersion = "dispatcher:2";
+
   window.__codexProjectMoveRuntimeId = (window.__codexProjectMoveRuntimeId || 0) + 1;
   const codexProjectMoveRuntimeId = window.__codexProjectMoveRuntimeId;
   clearTimeout(window.__codexProjectMoveProjectionTimer);
@@ -573,15 +574,117 @@
         outline: none;
       }
       .codex-plus-modal-overlay {
+        --codex-plus-modal-overlay-background: rgba(15, 23, 42, .30);
+        --codex-plus-modal-background: #ffffff;
+        --codex-plus-modal-color: #111827;
+        --codex-plus-modal-border: rgba(15, 23, 42, .14);
+        --codex-plus-modal-shadow: rgba(15, 23, 42, .24);
+        --codex-plus-modal-muted-color: #6b7280;
+        --codex-plus-modal-row-border: rgba(15, 23, 42, .10);
+        --codex-plus-modal-close-color: #4b5563;
+        --codex-plus-modal-scrollbar-color: rgba(15, 23, 42, .26);
+        --codex-plus-modal-scrollbar-hover-color: rgba(15, 23, 42, .36);
+        --codex-plus-modal-toggle-background: #d1d5db;
+        --codex-plus-modal-toggle-knob: #ffffff;
+        --codex-plus-modal-tab-border: rgba(15, 23, 42, .14);
+        --codex-plus-modal-tab-color: #374151;
+        --codex-plus-modal-button-border: rgba(15, 23, 42, .16);
+        --codex-plus-modal-button-background: #f3f4f6;
+        --codex-plus-modal-button-color: #111827;
+        --codex-plus-modal-list-border: rgba(15, 23, 42, .10);
+        --codex-plus-modal-status-idle: #6b7280;
+        --codex-plus-modal-status-ok: #059669;
+        --codex-plus-modal-status-failed: #dc2626;
+        --codex-plus-modal-warning: #b45309;
+        --codex-plus-modal-error: #dc2626;
         position: fixed;
         inset: 0;
         z-index: 2147483646;
         display: flex;
         align-items: center;
         justify-content: center;
-        background: rgba(0,0,0,.45);
+        background: var(--codex-plus-modal-overlay-background);
         pointer-events: auto;
         -webkit-app-region: no-drag;
+      }
+      @media (prefers-color-scheme: dark) {
+        .codex-plus-modal-overlay {
+          --codex-plus-modal-overlay-background: rgba(0, 0, 0, .45);
+          --codex-plus-modal-background: #2b2b2b;
+          --codex-plus-modal-color: #f3f4f6;
+          --codex-plus-modal-border: rgba(255, 255, 255, .12);
+          --codex-plus-modal-shadow: rgba(0, 0, 0, .45);
+          --codex-plus-modal-muted-color: #a1a1aa;
+          --codex-plus-modal-row-border: rgba(255, 255, 255, .10);
+          --codex-plus-modal-close-color: #d1d5db;
+          --codex-plus-modal-scrollbar-color: rgba(255, 255, 255, .28);
+          --codex-plus-modal-scrollbar-hover-color: rgba(255, 255, 255, .38);
+          --codex-plus-modal-toggle-background: #52525b;
+          --codex-plus-modal-toggle-knob: #ffffff;
+          --codex-plus-modal-tab-border: rgba(255, 255, 255, .14);
+          --codex-plus-modal-tab-color: #d1d5db;
+          --codex-plus-modal-button-border: rgba(255, 255, 255, .18);
+          --codex-plus-modal-button-background: #3f3f46;
+          --codex-plus-modal-button-color: #f3f4f6;
+          --codex-plus-modal-list-border: rgba(255, 255, 255, .08);
+          --codex-plus-modal-status-idle: #a1a1aa;
+          --codex-plus-modal-status-ok: #34d399;
+          --codex-plus-modal-status-failed: #f87171;
+          --codex-plus-modal-warning: #fbbf24;
+          --codex-plus-modal-error: #f87171;
+        }
+      }
+      .codex-plus-modal-overlay[data-codex-plus-theme="light"],
+      .codex-plus-modal-content[data-codex-plus-theme="light"] {
+        --codex-plus-modal-overlay-background: rgba(15, 23, 42, .30);
+        --codex-plus-modal-background: #ffffff;
+        --codex-plus-modal-color: #111827;
+        --codex-plus-modal-border: rgba(15, 23, 42, .14);
+        --codex-plus-modal-shadow: rgba(15, 23, 42, .24);
+        --codex-plus-modal-muted-color: #6b7280;
+        --codex-plus-modal-row-border: rgba(15, 23, 42, .10);
+        --codex-plus-modal-close-color: #4b5563;
+        --codex-plus-modal-scrollbar-color: rgba(15, 23, 42, .26);
+        --codex-plus-modal-scrollbar-hover-color: rgba(15, 23, 42, .36);
+        --codex-plus-modal-toggle-background: #d1d5db;
+        --codex-plus-modal-toggle-knob: #ffffff;
+        --codex-plus-modal-tab-border: rgba(15, 23, 42, .14);
+        --codex-plus-modal-tab-color: #374151;
+        --codex-plus-modal-button-border: rgba(15, 23, 42, .16);
+        --codex-plus-modal-button-background: #f3f4f6;
+        --codex-plus-modal-button-color: #111827;
+        --codex-plus-modal-list-border: rgba(15, 23, 42, .10);
+        --codex-plus-modal-status-idle: #6b7280;
+        --codex-plus-modal-status-ok: #059669;
+        --codex-plus-modal-status-failed: #dc2626;
+        --codex-plus-modal-warning: #b45309;
+        --codex-plus-modal-error: #dc2626;
+      }
+      .codex-plus-modal-overlay[data-codex-plus-theme="dark"],
+      .codex-plus-modal-content[data-codex-plus-theme="dark"] {
+        --codex-plus-modal-overlay-background: rgba(0, 0, 0, .45);
+        --codex-plus-modal-background: #2b2b2b;
+        --codex-plus-modal-color: #f3f4f6;
+        --codex-plus-modal-border: rgba(255, 255, 255, .12);
+        --codex-plus-modal-shadow: rgba(0, 0, 0, .45);
+        --codex-plus-modal-muted-color: #a1a1aa;
+        --codex-plus-modal-row-border: rgba(255, 255, 255, .10);
+        --codex-plus-modal-close-color: #d1d5db;
+        --codex-plus-modal-scrollbar-color: rgba(255, 255, 255, .28);
+        --codex-plus-modal-scrollbar-hover-color: rgba(255, 255, 255, .38);
+        --codex-plus-modal-toggle-background: #52525b;
+        --codex-plus-modal-toggle-knob: #ffffff;
+        --codex-plus-modal-tab-border: rgba(255, 255, 255, .14);
+        --codex-plus-modal-tab-color: #d1d5db;
+        --codex-plus-modal-button-border: rgba(255, 255, 255, .18);
+        --codex-plus-modal-button-background: #3f3f46;
+        --codex-plus-modal-button-color: #f3f4f6;
+        --codex-plus-modal-list-border: rgba(255, 255, 255, .08);
+        --codex-plus-modal-status-idle: #a1a1aa;
+        --codex-plus-modal-status-ok: #34d399;
+        --codex-plus-modal-status-failed: #f87171;
+        --codex-plus-modal-warning: #fbbf24;
+        --codex-plus-modal-error: #f87171;
       }
       .codex-plus-modal-content {
         width: min(520px, calc(100vw - 48px));
@@ -589,12 +692,12 @@
         display: flex;
         flex-direction: column;
         overflow: hidden;
-        border: 1px solid rgba(255,255,255,.12);
+        border: 1px solid var(--codex-plus-modal-border);
         border-radius: 18px;
-        background: #2b2b2b;
-        color: #f3f4f6;
+        background: var(--codex-plus-modal-background);
+        color: var(--codex-plus-modal-color);
         font: 14px system-ui, sans-serif;
-        box-shadow: 0 24px 80px rgba(0,0,0,.45);
+        box-shadow: 0 24px 80px var(--codex-plus-modal-shadow);
         pointer-events: auto;
         -webkit-app-region: no-drag;
       }
@@ -607,14 +710,14 @@
         -webkit-app-region: no-drag;
       }
       .codex-plus-modal-title { display: flex; align-items: center; gap: 8px; font-size: 18px; font-weight: 650; }
-      .codex-plus-backend-indicator { width: 9px; height: 9px; border-radius: 999px; background: #a1a1aa; display: inline-block; }
+      .codex-plus-backend-indicator { width: 9px; height: 9px; border-radius: 999px; background: var(--codex-plus-modal-status-idle); display: inline-block; }
       .codex-plus-backend-indicator[data-status="ok"] { background: #34d399; box-shadow: 0 0 8px rgba(52,211,153,.75); }
       .codex-plus-backend-indicator[data-status="failed"] { background: #ef4444; box-shadow: 0 0 8px rgba(239,68,68,.75); }
       .codex-plus-backend-indicator[data-status="checking"] { background: #fbbf24; }
       .codex-plus-modal-close {
         border: 0;
         background: transparent;
-        color: #d1d5db;
+        color: var(--codex-plus-modal-close-color);
         font-size: 20px;
         cursor: pointer;
         pointer-events: auto;
@@ -628,34 +731,34 @@
         scrollbar-gutter: stable;
         padding: 4px 20px 16px;
         scrollbar-width: thin;
-        scrollbar-color: rgba(255,255,255,.28) transparent;
+        scrollbar-color: var(--codex-plus-modal-scrollbar-color) transparent;
       }
       .codex-plus-modal-body::-webkit-scrollbar { width: 10px; }
       .codex-plus-modal-body::-webkit-scrollbar-track { background: transparent; }
       .codex-plus-modal-body::-webkit-scrollbar-thumb {
         border: 2px solid transparent;
         border-radius: 999px;
-        background: rgba(255,255,255,.28);
+        background: var(--codex-plus-modal-scrollbar-color);
         background-clip: padding-box;
       }
-      .codex-plus-modal-body::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,.38); background-clip: padding-box; }
+      .codex-plus-modal-body::-webkit-scrollbar-thumb:hover { background: var(--codex-plus-modal-scrollbar-hover-color); background-clip: padding-box; }
       .codex-plus-row {
         display: flex;
         align-items: flex-start;
         justify-content: space-between;
         gap: 12px;
         padding: 10px 0;
-        border-top: 1px solid rgba(255,255,255,.1);
+        border-top: 1px solid var(--codex-plus-modal-row-border);
       }
       .codex-plus-row:first-child { border-top: 0; }
       .codex-plus-row-title { font-weight: 550; line-height: 1.35; }
-      .codex-plus-row-description { margin-top: 2px; color: #a1a1aa; font-size: 12px; line-height: 1.4; }
+      .codex-plus-row-description { margin-top: 2px; color: var(--codex-plus-modal-muted-color); font-size: 12px; line-height: 1.4; }
       .codex-plus-toggle {
         width: 42px;
         height: 24px;
         border: 0;
         border-radius: 999px;
-        background: #52525b;
+        background: var(--codex-plus-modal-toggle-background);
         padding: 2px;
       }
       .codex-plus-toggle span {
@@ -663,7 +766,7 @@
         width: 20px;
         height: 20px;
         border-radius: 999px;
-        background: white;
+        background: var(--codex-plus-modal-toggle-knob);
         transition: transform .12s ease;
       }
       .codex-plus-toggle,
@@ -675,29 +778,29 @@
       }
       .codex-plus-toggle[data-enabled="true"] { background: #10a37f; }
       .codex-plus-toggle[data-enabled="true"] span { transform: translateX(18px); }
-      .codex-plus-about { color: #a1a1aa; line-height: 1.5; }
+      .codex-plus-about { color: var(--codex-plus-modal-muted-color); line-height: 1.5; }
       .codex-plus-tabs { display: flex; gap: 8px; padding: 0 20px 6px; flex: 0 0 auto; }
-      .codex-plus-tab-button { border: 1px solid rgba(255,255,255,.14); border-radius: 999px; background: transparent; color: #d1d5db; font: 12px system-ui, sans-serif; padding: 5px 10px; }
+      .codex-plus-tab-button { border: 1px solid var(--codex-plus-modal-tab-border); border-radius: 999px; background: transparent; color: var(--codex-plus-modal-tab-color); font: 12px system-ui, sans-serif; padding: 5px 10px; }
       .codex-plus-tab-button[data-active="true"] { background: #10a37f; color: white; border-color: #10a37f; }
       .codex-plus-panel[hidden] { display: none; }
       .codex-plus-action-button,
-      .codex-plus-issue-button { border: 1px solid rgba(255,255,255,.18); border-radius: 7px; background: #3f3f46; color: #f3f4f6; font: 12px system-ui, sans-serif; padding: 6px 8px; }
+      .codex-plus-issue-button { border: 1px solid var(--codex-plus-modal-button-border); border-radius: 7px; background: var(--codex-plus-modal-button-background); color: var(--codex-plus-modal-button-color); font: 12px system-ui, sans-serif; padding: 6px 8px; }
       .codex-plus-backend-status { display: grid; gap: 4px; min-width: 132px; justify-items: end; }
-      .codex-plus-backend-label { color: #a1a1aa; font-size: 12px; }
-      .codex-plus-backend-label[data-status="ok"] { color: #34d399; }
-      .codex-plus-backend-label[data-status="failed"] { color: #f87171; }
-      .codex-plus-backend-repair { border: 1px solid rgba(255,255,255,.18); border-radius: 7px; background: #3f3f46; color: #f3f4f6; font: 12px system-ui, sans-serif; padding: 6px 8px; }
+      .codex-plus-backend-label { color: var(--codex-plus-modal-status-idle); font-size: 12px; }
+      .codex-plus-backend-label[data-status="ok"] { color: var(--codex-plus-modal-status-ok); }
+      .codex-plus-backend-label[data-status="failed"] { color: var(--codex-plus-modal-status-failed); }
+      .codex-plus-backend-repair { border: 1px solid var(--codex-plus-modal-button-border); border-radius: 7px; background: var(--codex-plus-modal-button-background); color: var(--codex-plus-modal-button-color); font: 12px system-ui, sans-serif; padding: 6px 8px; }
       .codex-plus-backend-repair[hidden] { display: none; }
-      .codex-plus-model-compat-warning { margin-top: 6px; color: #fbbf24; font-size: 12px; line-height: 1.45; }
-      .codex-plus-user-script-warning { margin-top: 4px; color: #fbbf24; font-size: 12px; }
-      .codex-plus-user-script-dirs { margin-top: 6px; color: #a1a1aa; font-size: 11px; line-height: 1.4; word-break: break-all; }
+      .codex-plus-model-compat-warning { margin-top: 6px; color: var(--codex-plus-modal-warning); font-size: 12px; line-height: 1.45; }
+      .codex-plus-user-script-warning { margin-top: 4px; color: var(--codex-plus-modal-warning); font-size: 12px; }
+      .codex-plus-user-script-dirs { margin-top: 6px; color: var(--codex-plus-modal-muted-color); font-size: 11px; line-height: 1.4; word-break: break-all; }
       .codex-plus-user-script-list { margin-top: 8px; display: grid; gap: 6px; }
-      .codex-plus-user-script-item { display: flex; align-items: center; justify-content: space-between; gap: 8px; border: 1px solid rgba(255,255,255,.08); border-radius: 8px; padding: 6px 8px; }
+      .codex-plus-user-script-item { display: flex; align-items: center; justify-content: space-between; gap: 8px; border: 1px solid var(--codex-plus-modal-list-border); border-radius: 8px; padding: 6px 8px; }
       .codex-plus-user-script-name { font-size: 12px; }
-      .codex-plus-user-script-meta { margin-top: 2px; color: #a1a1aa; font-size: 11px; }
-      .codex-plus-user-script-error { margin-top: 2px; color: #f87171; font-size: 11px; word-break: break-all; }
+      .codex-plus-user-script-meta { margin-top: 2px; color: var(--codex-plus-modal-muted-color); font-size: 11px; }
+      .codex-plus-user-script-error { margin-top: 2px; color: var(--codex-plus-modal-error); font-size: 11px; word-break: break-all; }
       .codex-plus-user-script-actions { display: grid; justify-items: end; gap: 8px; min-width: 120px; }
-      .codex-plus-user-script-reload { border: 1px solid rgba(255,255,255,.18); border-radius: 7px; background: #3f3f46; color: #f3f4f6; font: 12px system-ui, sans-serif; padding: 6px 8px; }
+      .codex-plus-user-script-reload { border: 1px solid var(--codex-plus-modal-button-border); border-radius: 7px; background: var(--codex-plus-modal-button-background); color: var(--codex-plus-modal-button-color); font: 12px system-ui, sans-serif; padding: 6px 8px; }
       .${timelineClass} {
         position: fixed;
         top: calc(72px + 12px);
@@ -777,6 +880,7 @@
   }
 
   function defaultCodexPlusSettings() {
+
     return {
       pluginEntryUnlock: true,
       forcePluginInstall: true,
@@ -791,6 +895,7 @@
       nativeMenuPlacement: true,
       modelWhitelistUnlock: true,
     };
+
   }
 
   function codexPlusSettings() {
@@ -804,6 +909,10 @@
   function setCodexPlusSetting(key, value) {
     const next = { ...codexPlusSettings(), [key]: value };
     localStorage.setItem(codexPlusSettingsKey, JSON.stringify(next));
+
+    if (key === "bulkExport" && !value) setBulkExportMode(false);
+    if (key === "projectMove" && !value) setBulkMoveMode(false);
+
     if (key === "threadScrollRestore" && !value) {
       clearThreadScrollRestoreTimers();
       clearThreadScrollSyncTimers();
@@ -812,8 +921,7 @@
       clearThreadScrollRestoreLock();
       bindThreadScrollListener(null);
     }
-    if (key === "bulkExport" && !value) setBulkExportMode(false);
-    if (key === "projectMove" && !value) setBulkMoveMode(false);
+
     renderCodexPlusMenu();
     scan();
   }
@@ -971,6 +1079,90 @@
     }
   }
 
+  function codexPlusThemeFromValue(value) {
+    const normalized = String(value || "").toLowerCase();
+    if (/(^|[\s_-])dark($|[\s_-])/.test(normalized) || normalized === "dark") return "dark";
+    if (/(^|[\s_-])light($|[\s_-])/.test(normalized) || normalized === "light") return "light";
+    return null;
+  }
+
+  function codexPlusThemeFromColorScheme(value) {
+    const firstScheme = String(value || "").trim().toLowerCase().split(/\s+/)[0];
+    return firstScheme === "dark" || firstScheme === "light" ? firstScheme : null;
+  }
+
+  function codexPlusThemeFromNode(node) {
+    if (!node) return null;
+    const attributeNames = ["data-theme", "data-color-theme", "data-mode", "data-color-mode", "theme"];
+    for (const name of attributeNames) {
+      const theme = codexPlusThemeFromValue(node.getAttribute?.(name));
+      if (theme) return theme;
+    }
+    const classTheme = codexPlusThemeFromValue(node.className);
+    if (classTheme) return classTheme;
+    const inlineColorScheme = codexPlusThemeFromColorScheme(node.style?.colorScheme || node.getAttribute?.("color-scheme"));
+    if (inlineColorScheme) return inlineColorScheme;
+    try {
+      const computedColorScheme = codexPlusThemeFromColorScheme(window.getComputedStyle?.(node)?.colorScheme);
+      if (computedColorScheme) return computedColorScheme;
+    } catch {
+      return null;
+    }
+    return null;
+  }
+
+  function codexPlusHostTheme() {
+    const roots = [document.documentElement, document.body].filter(Boolean);
+    for (const root of roots) {
+      const theme = codexPlusThemeFromNode(root);
+      if (theme) return theme;
+    }
+    return window.matchMedia?.("(prefers-color-scheme: dark)")?.matches ? "dark" : "light";
+  }
+
+  function syncCodexPlusModalTheme(root = document) {
+    const theme = codexPlusHostTheme();
+    const nodes = [];
+    if (root instanceof Element && root.matches(".codex-plus-modal-overlay, .codex-plus-modal-content")) {
+      nodes.push(root);
+    }
+    root.querySelectorAll?.(".codex-plus-modal-overlay, .codex-plus-modal-content").forEach((node) => nodes.push(node));
+    nodes.forEach((node) => {
+      node.dataset.codexPlusTheme = theme;
+    });
+    return theme;
+  }
+
+  function removeCodexPlusThemeMediaListener() {
+    const media = window.__codexPlusThemeMedia;
+    const handler = window.__codexPlusThemeMediaHandler;
+    if (!media || !handler) return;
+    if (media.removeEventListener) media.removeEventListener("change", handler);
+    else if (media.removeListener) media.removeListener(handler);
+  }
+
+  function installCodexPlusThemeSync() {
+    if (window.__codexPlusThemeSyncVersion === codexPlusThemeSyncVersion) {
+      syncCodexPlusModalTheme();
+      return;
+    }
+    window.__codexPlusThemeObserver?.disconnect?.();
+    removeCodexPlusThemeMediaListener();
+    const observer = new MutationObserver(() => syncCodexPlusModalTheme());
+    [document.documentElement, document.body].filter(Boolean).forEach((node) => {
+      observer.observe(node, { attributes: true, attributeFilter: ["class", "data-theme", "data-color-theme", "data-mode", "data-color-mode", "style", "color-scheme"] });
+    });
+    const media = window.matchMedia?.("(prefers-color-scheme: dark)");
+    const mediaHandler = () => syncCodexPlusModalTheme();
+    if (media?.addEventListener) media.addEventListener("change", mediaHandler);
+    else if (media?.addListener) media.addListener(mediaHandler);
+    window.__codexPlusThemeObserver = observer;
+    window.__codexPlusThemeMedia = media;
+    window.__codexPlusThemeMediaHandler = mediaHandler;
+    window.__codexPlusThemeSyncVersion = codexPlusThemeSyncVersion;
+    syncCodexPlusModalTheme();
+  }
+
   function selectCodexPlusTab(tab) {
     document.querySelectorAll(".codex-plus-modal-content").forEach((modal) => {
       modal.dataset.codexPlusActiveTab = tab;
@@ -1090,6 +1282,7 @@
         </div>
       </div>
     `;
+    syncCodexPlusModalTheme(overlay);
     const closeButton = overlay.querySelector(".codex-plus-modal-close");
     closeButton?.addEventListener("click", (event) => {
       event.preventDefault();
@@ -1276,7 +1469,9 @@
       return;
     }
     let insertionPoint = findNativeMenuInsertionPoint();
+
     if (existing && existing.dataset.codexPlusMenuVersion !== codexPlusMenuVersion) {
+
       existing.remove();
       insertionPoint = findNativeMenuInsertionPoint();
     } else if (existing && insertionPoint && existing.parentElement === insertionPoint.parent) {
@@ -1287,7 +1482,9 @@
     const menu = document.createElement("div");
     menu.id = codexPlusMenuId;
     menu.dataset.codexPlusMenu = "true";
+
     menu.dataset.codexPlusMenuVersion = codexPlusMenuVersion;
+
     const trigger = document.createElement("button");
     trigger.type = "button";
     trigger.textContent = `Codex++ ${codexPlusVersion}`;
@@ -1359,7 +1556,9 @@
   function spoofChatGPTAuthMethod(element) {
     const auth = authContextValueFrom(element);
     if (!auth || auth.authMethod === "chatgpt") return false;
+
     // 注入规避：插件入口会在 React 状态传播完成前同步读取 authMethod。
+
     auth.authMethod = "chatgpt";
     auth.setAuthMethod("chatgpt");
     return true;
@@ -1370,6 +1569,17 @@
     if (byIcon) return byIcon;
     return Array.from(document.querySelectorAll(selectors.pluginNavButton))
       .find((button) => /^(插件|Plugins)(\s+-\s+.*)?$/i.test((button.textContent || "").trim())) || null;
+  }
+
+  function isPluginEntryButtonElement(button) {
+    return !!button?.matches?.(selectors.pluginNavButton) &&
+      (!!button.querySelector?.(selectors.pluginSvgPath) || /^(插件|Plugins)(\s+-\s+.*)?$/i.test((button.textContent || "").trim()));
+  }
+
+  function pluginEntryButtonFromNode(node) {
+    if (node.nodeType !== 1) return null;
+    const button = node.matches?.(selectors.pluginNavButton) ? node : node.closest?.(selectors.pluginNavButton);
+    return isPluginEntryButtonElement(button) ? button : null;
   }
 
   function labelUnlockedPluginEntry(button) {
@@ -1406,7 +1616,9 @@
     if (pluginButton.dataset.codexPluginEnabledVersion === pluginEntryHandlerVersion) return;
     pluginButton.dataset.codexPluginEnabled = "true";
     pluginButton.dataset.codexPluginEnabledVersion = pluginEntryHandlerVersion;
+
     // 捕获阶段先于 Codex 自身激活处理器执行，确保入口点击时上下文已切到 chatgpt。
+
     ["pointerdown", "mousedown", "touchstart"].forEach((eventName) => {
       pluginButton.addEventListener(eventName, () => {
         spoofChatGPTAuthMethod(pluginButton);
@@ -1418,6 +1630,52 @@
     pluginButton.addEventListener("keydown", (event) => {
       if (event.key === "Enter" || event.key === " " || event.key === "Spacebar") spoofChatGPTAuthMethod(pluginButton);
     }, true);
+
+  }
+
+  function nodeContainsPluginEntryCandidate(node) {
+    if (node.nodeType !== 1) return false;
+    return !!node.matches?.(selectors.pluginNavButton) ||
+      !!node.querySelector?.(selectors.pluginNavButton) ||
+      !!node.matches?.(selectors.pluginSvgPath) ||
+      !!node.querySelector?.(selectors.pluginSvgPath);
+  }
+
+  function schedulePluginEntryUnlockRetries() {
+    if (!codexPlusSettings().pluginEntryUnlock) return;
+    (window.__codexPlusPluginEntryUnlockTimers || []).forEach(clearTimeout);
+    window.__codexPlusPluginEntryUnlockTimers = [100, 300, 700, 1500, 3000].map((delay) => {
+      return setTimeout(() => {
+        if (document.visibilityState !== "hidden") runScanStep(enablePluginEntry);
+      }, delay);
+    });
+  }
+
+  function schedulePluginEntryUnlockFrame() {
+    if (!codexPlusSettings().pluginEntryUnlock || window.__codexPlusPluginEntryUnlockRaf) return;
+    window.__codexPlusPluginEntryUnlockRaf = requestAnimationFrame(() => {
+      window.__codexPlusPluginEntryUnlockRaf = 0;
+      runScanStep(enablePluginEntry);
+    });
+  }
+
+  function nodeLooksPluginEntryLocked(node) {
+    return node.disabled === true ||
+      node.hasAttribute?.("disabled") ||
+      node.getAttribute?.("aria-disabled") === "true" ||
+      node.classList?.contains("disabled") ||
+      node.classList?.contains("opacity-50") ||
+      node.classList?.contains("cursor-not-allowed") ||
+      node.classList?.contains("pointer-events-none") ||
+      node.style?.pointerEvents === "none" ||
+      node.style?.opacity === "0.5";
+  }
+
+  function shouldRefreshPluginEntryUnlock(mutation) {
+    if (mutation.type !== "attributes" || !["disabled", "aria-disabled", "class", "style"].includes(mutation.attributeName)) return false;
+    const button = pluginEntryButtonFromNode(mutation.target);
+    return !!button && (nodeLooksPluginEntryLocked(button) || nodeLooksPluginEntryLocked(mutation.target));
+
   }
 
   function pluginInstallCandidates() {
@@ -1550,6 +1808,7 @@
     const title = (titleNode ? rawTitle : rawTitle.replace(/\s*(导出|删除|移动|移出项目)(\s*(导出|删除|移动|移出项目))*$/g, "")).trim().slice(0, 160);
     return { session_id: sessionId, title };
   }
+
 
   function locationThreadId() {
     const source = `${window.location.pathname}${window.location.search}${window.location.hash}`;
@@ -2341,7 +2600,9 @@
         resolve({ status: "failed", message: String(error?.message || error || "后端修复失败") });
       }
     });
+
   }
+
   async function postJson(path, payload) {
     const bridgeTimeoutMs = path === "/backend/status" || path === "/backend/repair" ? 1800 : 30000;
     const bridgeRequest = window.__codexSessionDeleteBridge
@@ -3936,7 +4197,6 @@
     releaseDeleteFocus(row, button);
     const shouldReload = isCurrentSessionRow(row, ref);
     hideDeletedRow(row);
-    setTimeout(() => row.remove(), 0);
     if (shouldReload) {
       window.location.reload();
     }
@@ -4613,7 +4873,6 @@
       if (result.status === "server_deleted" || result.status === "local_deleted") {
         rememberDeletedSession(ref);
         hideDeletedRow(row);
-        setTimeout(() => row.remove(), 0);
         deleted += 1;
       }
     }
@@ -4624,15 +4883,24 @@
     return Array.from(row.querySelectorAll("button")).find(isUnarchiveButton);
   }
 
-  function restoreArchiveUnarchiveButton(unarchiveButton) {
-    if (!unarchiveButton?.isConnected) return;
-    unarchiveButton.classList.remove(actionButtonClass, "codex-archive-row-button");
-    delete unarchiveButton.dataset.codexArchiveRowAction;
-    delete unarchiveButton.dataset.codexActionKind;
-    delete unarchiveButton.dataset.codexActionIconVersion;
-    unarchiveButton.setAttribute("aria-label", "取消归档对话");
-    unarchiveButton.title = "取消归档对话";
-    unarchiveButton.textContent = "取消归档";
+  function cleanupBodyArchiveRowOverlays() {
+    document.querySelectorAll("[data-codex-archive-row-overlay]").forEach((node) => node.remove());
+  }
+
+  function archiveUnarchiveButtonBusy(button) {
+    return !!(button.disabled
+      || button.getAttribute("aria-disabled") === "true"
+      || button.querySelector('[role="progressbar"], [aria-busy="true"], [class*="spinner"], [class*="Spinner"]'));
+  }
+
+  function restoreLegacyArchiveUnarchiveButton(button) {
+    if (!button?.isConnected || button.dataset.codexArchiveRowAction !== "unarchive") return;
+    button.classList.remove(actionButtonClass, "codex-archive-row-button");
+    delete button.dataset.codexArchiveRowAction;
+    delete button.dataset.codexActionKind;
+    delete button.dataset.codexActionIconVersion;
+    button.setAttribute("aria-label", "取消归档对话");
+    button.title = "取消归档对话";
   }
 
   function cleanupLegacyArchiveRowActionGroups(row) {
@@ -4640,11 +4908,11 @@
       const unarchiveButton = archiveUnarchiveButtonFromRow(group);
       if (unarchiveButton) {
         group.insertAdjacentElement("beforebegin", unarchiveButton);
-        restoreArchiveUnarchiveButton(unarchiveButton);
+        restoreLegacyArchiveUnarchiveButton(unarchiveButton);
       }
       group.remove();
     });
-    Array.from(row.querySelectorAll('[data-codex-archive-row-action="unarchive"]')).forEach(restoreArchiveUnarchiveButton);
+    Array.from(row.querySelectorAll('[data-codex-archive-row-action="unarchive"]')).forEach(restoreLegacyArchiveUnarchiveButton);
   }
 
   function configureArchiveTextButton(button, kind, label) {
@@ -4656,12 +4924,12 @@
 
   function attachArchivedPageDeleteButton(row) {
     const settings = codexPlusSettings();
+    cleanupBodyArchiveRowOverlays();
     cleanupLegacyArchiveRowActionGroups(row);
+    const unarchiveButton = archiveUnarchiveButtonFromRow(row);
+    if (!unarchiveButton || archiveUnarchiveButtonBusy(unarchiveButton)) return;
     row.querySelectorAll('[data-codex-archive-row-action="export"], [data-codex-archive-row-action="delete"]').forEach((button) => button.remove());
     row.dataset.codexArchiveDeleteRow = "false";
-    const unarchiveButton = archiveUnarchiveButtonFromRow(row);
-    if (!unarchiveButton) return;
-    restoreArchiveUnarchiveButton(unarchiveButton);
     if (!settings.sessionDelete && !settings.markdownExport) return;
     row.dataset.codexArchiveDeleteRow = "true";
     let insertAfter = unarchiveButton;
@@ -4705,7 +4973,6 @@
         if (result.status === "server_deleted" || result.status === "local_deleted") {
           rememberDeletedSession(ref);
           hideDeletedRow(row);
-          setTimeout(() => row.remove(), 0);
           showToast(result.message || "删除成功", result.undo_token);
         } else {
           showToast(result.message || "删除失败", null);
@@ -4995,6 +5262,7 @@
 
   function scanLightweight() {
     installStyle();
+    installCodexPlusThemeSync();
     installCodexPlusMenu();
     scheduleBackendHeartbeat();
     patchCodexModelWhitelist();
@@ -5438,6 +5706,11 @@
     refreshZedRemoteOpenInMenus(context);
   }
 
+  function installArchivedPageRowActions() {
+    cleanupBodyArchiveRowOverlays();
+    archivedPageRows().forEach(attachArchivedPageDeleteButton);
+  }
+
   function scanDeferred() {
     applyRetryAttemptControls();
     enablePluginEntry();
@@ -5452,7 +5725,7 @@
     updateDeleteButtonOffsets();
     scheduleProjectMoveProjection();
     scheduleChatsSortCorrection();
-    archivedPageRows().forEach(attachArchivedPageDeleteButton);
+    installArchivedPageRowActions();
     installArchivedDeleteAllButton();
     refreshConversationTimeline();
     refreshZedRemoteOpenControls();
@@ -5551,6 +5824,8 @@
       const target = mutation.target;
       if (isExtensionUiNode(target)) return false;
       if (target?.nodeType === 1 && target.matches?.('[role="menu"], [data-radix-popper-content-wrapper]')) return true;
+      if (Array.from(mutation.addedNodes).some(nodeContainsPluginEntryCandidate)) return true;
+      if (target?.nodeType === 1 && target.matches?.('[role="menu"], [data-radix-popper-content-wrapper]')) return true;
       if (target?.nodeType === 1 && nodeSelfOrAncestorMatchesScanRelevance(target)) return true;
       const changedNodes = [...Array.from(mutation.addedNodes), ...Array.from(mutation.removedNodes)];
       if (changedNodes.some((node) => node.nodeType === 1 && (
@@ -5569,8 +5844,12 @@
   }
 
   function scheduleScan(mutations) {
+
     if (mutations?.some((mutation) => mutation.type === "attributes" && mutation.attributeName === "aria-current" && mutation.target?.matches?.(selectors.sidebarThread))) {
       scheduleThreadScrollSyncAttempts(true);
+    }
+    if (mutations?.some(shouldRefreshPluginEntryUnlock)) {
+      schedulePluginEntryUnlockFrame();
     }
     if (!shouldScheduleScan(mutations)) return;
     if (window.__codexSessionDeleteScanPending) return;
@@ -5591,6 +5870,7 @@
   }
 
   scan();
+  schedulePluginEntryUnlockRetries();
   window.__codexProjectMoveApplyProjection = applyProjectMoveProjection;
   window.__codexProjectMoveReadProjection = readProjectMoveProjection;
   window.__codexProjectMoveTargets = projectMoveTargets;
@@ -5606,6 +5886,8 @@
     });
   };
   window.addEventListener("resize", window.__codexPlusResizeHandler);
+  window.removeEventListener("scroll", window.__codexPlusArchiveOverlayScrollHandler, true);
+  window.__codexPlusArchiveOverlayScrollHandler = null;
   window.removeEventListener("visibilitychange", window.__codexPlusVisibilityResumeHandler);
   window.__codexPlusVisibilityResumeHandler = runForegroundResumeScans;
   window.addEventListener("visibilitychange", window.__codexPlusVisibilityResumeHandler);
@@ -5614,5 +5896,12 @@
   window.addEventListener("focus", window.__codexPlusFocusResumeHandler);
   window.__codexSessionDeleteObserver?.disconnect();
   window.__codexSessionDeleteObserver = new MutationObserver(scheduleScan);
-  window.__codexSessionDeleteObserver.observe(document.body || document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ["aria-current"] });
+
+  window.__codexSessionDeleteObserver.observe(document.body || document.documentElement, {
+    attributeFilter: ["aria-current", "disabled", "aria-disabled", "class", "style"],
+    attributes: true,
+    childList: true,
+    subtree: true,
+  });
+
 })();

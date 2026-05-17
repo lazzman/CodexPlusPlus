@@ -245,6 +245,13 @@ def test_renderer_script_enables_plugin_entry_for_api_key_users():
     assert "/skills/plugins" not in text
     assert "skillProps.onClick" not in text
     assert "unblockButtonElement(pluginButton)" in plugin_entry_code
+    assert "function isPluginEntryButtonElement(button)" in plugin_entry_code
+    assert "function pluginEntryButtonFromNode(node)" in plugin_entry_code
+    assert "function schedulePluginEntryUnlockRetries()" in plugin_entry_code
+    assert "function schedulePluginEntryUnlockFrame()" in plugin_entry_code
+    assert "function shouldRefreshPluginEntryUnlock(mutation)" in plugin_entry_code
+    assert "nodeLooksPluginEntryLocked(button)" in plugin_entry_code
+    assert "window.__codexPlusPluginEntryUnlockTimers" in plugin_entry_code
     assert "function reactPropsFor(element)" in text
     assert "event.stopImmediatePropagation?.()" in text[text.index("function installPluginReactOnClickFallback"):text.index("\n\n  function labelForcedInstallButton")]
     assert "props.onClick(new MouseEvent(\"click\", { bubbles: true, cancelable: true, view: window }))" in text
@@ -286,8 +293,37 @@ def test_renderer_script_debounces_mutation_observer_scan():
     assert "new MutationObserver(scheduleScan)" in text
     assert "new MutationObserver(scan)" not in text
     assert "scan();" in text
+    assert "schedulePluginEntryUnlockRetries();" in text
+    assert "mutations?.some(shouldRefreshPluginEntryUnlock)" in text
+    assert "schedulePluginEntryUnlockFrame();" in text
     assert "window.__codexProjectMoveApplyProjection" in text
     assert "window.__codexSessionDeleteObserver" in text
+
+
+def test_renderer_script_restores_thread_scroll_positions():
+    text = Path("codex_session_delete/inject/renderer-inject.js").read_text(encoding="utf-8")
+
+    assert "threadScrollRestore: true" in text
+    assert "切换对话保留位置" in text
+    assert "data-codex-plus-setting=\"threadScrollRestore\"" in text
+    assert "codexThreadScrollKey = \"codexThreadScroll\"" in text
+    assert "codexThreadScrollMaxEntries = 120" in text
+    assert "function threadScrollRuntime()" in text
+    assert "function threadScrollIsReversed(scroller)" in text
+    assert "function threadScrollRange(scroller)" in text
+    assert "function readThreadScrollEntries()" in text
+    assert "function writeThreadScrollEntries(entries)" in text
+    assert "top: finiteScrollNumber(scroller.scrollTop)" in text
+    assert "threadScrollTargetTop(scroller, targetTop)" in text
+    assert "function cancelThreadScrollRestoreForUserIntent()" in text
+    assert "function threadScrollRestoreCancelledForSession" in text
+    assert "function installThreadScrollProgrammaticScrollGuard()" in text
+    assert "Object.defineProperty(scrollTop.prototype, \"scrollTop\"" in text
+    assert "function installThreadScrollRouteHooks()" in text
+    assert "history[method] = function codexThreadScrollPatchedHistory" in text
+    assert "document.addEventListener(\"wheel\", window.__codexThreadScrollWheelIntentHandler" in text
+    assert "document.addEventListener(\"pointerdown\", navigationHandler, true)" in text
+    assert "scheduleThreadScrollSyncAttempts(true)" in text
 
 
 def test_renderer_script_ignores_chat_content_mutations_before_scheduling_scan():
@@ -309,6 +345,7 @@ def test_renderer_script_ignores_chat_content_mutations_before_scheduling_scan()
     assert "Array.from(mutation.addedNodes).some((node) => node.nodeType === 1 && isScanRelevantNode(node))" in should_schedule_code
     assert "selectors.sidebarThread" in should_schedule_code
     assert "selectors.appHeader" in should_schedule_code
+    assert "nodeContainsPluginEntryCandidate" in should_schedule_code
 
 
 def test_renderer_script_chat_filter_keeps_relevant_node_escape_hatch():
@@ -411,14 +448,15 @@ def test_renderer_script_archive_scan_relevance_has_text_fallback():
     assert "[role=\"button\"][aria-disabled=\"true\"].cursor-not-allowed" in text
 
 
-def test_renderer_script_clears_focus_and_removes_deleted_rows():
+def test_renderer_script_clears_focus_and_hides_deleted_rows():
     text = Path("codex_session_delete/inject/renderer-inject.js").read_text(encoding="utf-8")
     assert "removeDeletedRow(row, button, ref)" in text
     assert "function releaseDeleteFocus" in text
     assert "releaseDeleteFocus(row, button)" in text
     assert "button.blur()" in text
     assert "document.activeElement.blur()" in text
-    assert "row.remove()" in text
+    assert "setTimeout(() => row.remove(), 0)" not in text
+    assert "hideDeletedRow(row)" in text
     assert "row.style.display = \"none\"" not in text
 
 
@@ -451,7 +489,7 @@ def test_renderer_script_uses_in_page_confirm_and_stops_early_pointer_events():
     assert "popover.style.left = `${left}px`" in text
     assert "popover.style.visibility = \"visible\"" in text
     assert "confirmDelete(ref.title, button)" in text
-    assert "confirmDelete(ref.title, deleteButton)" in text
+    assert "if (!(await confirmDelete(ref.title, deleteButton))) return" in text
     assert "confirmDelete(`全部 ${currentRows.length} 个归档会话`, button)" in text
     assert "codex-delete-confirm-overlay" not in text
     assert "popover.setAttribute(\"aria-label\", `删除会话：${title}`)" in text
@@ -574,7 +612,7 @@ def test_renderer_script_removes_orphaned_projected_rows_when_thread_is_missing(
 
     text = Path("codex_session_delete/inject/renderer-inject.js").read_text(encoding="utf-8")
     assert "updateDeleteButtonOffsets" in text
-    assert "codexDeleteStyleVersion = \"13\"" in text
+    assert "codexDeleteStyleVersion = \"16\"" in text
     assert "codexActionGroupVersion = \"5\"" in text
     assert "right: var(--codex-session-action-confirm-right, 66px)" not in text
     assert "确认" in text
@@ -651,8 +689,6 @@ def test_renderer_script_removes_orphaned_projected_rows_when_thread_is_missing(
     assert "data-codex-archive-row-action=\"delete\"]:hover" in text
     assert "button.setAttribute(\"aria-label\", \"删除全部归档\")" in text
     assert "button.title = \"删除全部归档\"" in text
-    assert "Element.prototype" not in text
-    assert "CSSStyleDeclaration" not in text
     assert "已归档对话" in text
     assert "title.insertAdjacentElement(\"afterend\", button)" not in text
     assert "title.appendChild(button)" not in text
@@ -667,12 +703,21 @@ def test_renderer_script_removes_orphaned_projected_rows_when_thread_is_missing(
     archive_attach_start = text.index("function attachArchivedPageDeleteButton")
     archive_attach_end = text.index("\n\n  function installArchivedDeleteAllButton", archive_attach_start)
     archive_attach_code = text[archive_attach_start:archive_attach_end]
+    assert "Element.prototype" not in archive_attach_code
+    assert "CSSStyleDeclaration" not in archive_attach_code
     assert "取消归档" in text
     assert "已归档对话" in text
     assert "archiveRowFromUnarchiveButton" in text
     assert "[role=\"listitem\"], [role=\"row\"]" in text
     assert "Archived conversations" in text
     assert "data-codex-archive-row-action" in text
+    assert "data-codex-archive-row-overlay" in text
+    assert "function cleanupBodyArchiveRowOverlays()" in text
+    assert "function installArchivedPageRowActions()" in text
+    assert "installArchivedPageRowActions();" in text
+    assert "window.removeEventListener(\"scroll\", window.__codexPlusArchiveOverlayScrollHandler, true)" in text
+    assert "window.__codexPlusArchiveOverlayScrollHandler = null" in text
+    assert "archiveRowOverlayClass" not in text
     assert "archiveActionGroupClass" not in text
     assert "archiveActionButtonConfigs" not in text
     assert "function configureArchiveActionButton(button, kind)" not in text
@@ -688,12 +733,15 @@ def test_renderer_script_removes_orphaned_projected_rows_when_thread_is_missing(
     assert "button.textContent = kind === \"export\" ? \"导出\" : \"删除\"" in text
     assert "function archiveUnarchiveButtonFromRow(row)" in text
     assert "Array.from(row.querySelectorAll(\"button\")).find(isUnarchiveButton)" in text
+    assert "function archiveUnarchiveButtonBusy(button)" in text
+    assert "function restoreLegacyArchiveUnarchiveButton(button)" in text
     assert "function ensureArchiveRowActionGroup(row, unarchiveButton)" not in text
     assert "configureArchiveActionButton(unarchiveButton, \"unarchive\")" not in text
     assert "configureArchiveTextButton(exportButton, \"export\", \"导出 Markdown\")" in archive_attach_code
     assert "configureArchiveTextButton(deleteButton, \"delete\", \"删除归档对话\")" in archive_attach_code
-    assert "restoreArchiveUnarchiveButton(unarchiveButton)" in archive_attach_code
-    assert "unarchiveButton.textContent = \"取消归档\"" in text
+    assert "restoreArchiveUnarchiveButton(unarchiveButton)" not in archive_attach_code
+    assert "unarchiveButton.textContent = \"取消归档\"" not in text
+    assert "if (!unarchiveButton || archiveUnarchiveButtonBusy(unarchiveButton)) return" in archive_attach_code
     assert "insertAfter.insertAdjacentElement(\"afterend\", exportButton)" in archive_attach_code
     assert "insertAfter.insertAdjacentElement(\"afterend\", deleteButton)" in archive_attach_code
     assert "group.appendChild(exportButton)" not in archive_attach_code
@@ -807,9 +855,7 @@ def test_renderer_script_includes_user_script_manager_ui_contract():
     assert "sessionDelete" in text
     assert "markdownExport" in text
     assert "projectMove" in text
-    assert "threadScrollRestore" in text
     assert "会话项目移动" in text
-    assert "切换对话保留位置" in text
     assert "移动按钮" in text
     assert "codex-plus-modal-overlay" in text
     assert "codex-plus-modal-content" in text
@@ -831,12 +877,10 @@ def test_renderer_script_includes_user_script_manager_ui_contract():
     assert "nativeButtonClass" in text
     assert "removeDuplicateCodexPlusMenus" in text
     assert "data-codex-plus-menu" in text
-    assert "/^Codex\\+\\+ \\d+\\.\\d+\\.\\d+/.test((button.textContent || \"\").trim())" in text
+    assert "/^Codex\\+\\+ \\d+\\.\\d+\\.\\d+/" in text
     assert "codexPlusMenuVersion = `7:${codexPlusVersion}`" in text
-    assert "codexPlusTriggerVersion = `6:${codexPlusVersion}`" in text
     assert "existing.dataset.codexPlusMenuVersion !== codexPlusMenuVersion" in text
-    assert "trigger.dataset.codexPlusTriggerInstalled = codexPlusTriggerVersion" in text
-    assert "function setCodexPlusTriggerLabel" in text
+    assert "codexPlusTriggerInstalled === codexPlusTriggerVersion" in text
     assert ".codex-plus-trigger:hover" not in text
     assert "function pageHasCodexAppChrome" in text
     assert "if (!pageHasCodexAppChrome())" in text
@@ -852,6 +896,44 @@ def test_renderer_script_includes_user_script_manager_ui_contract():
     relevant_start = text.index("const scanRelevantSelector")
     relevant_end = text.index("\n\n  function isScanRelevantNode", relevant_start)
     assert '"header"' in text[relevant_start:relevant_end]
+
+
+def test_renderer_script_codex_plus_modal_follows_host_theme():
+    text = Path("codex_session_delete/inject/renderer-inject.js").read_text(encoding="utf-8")
+
+    assert "codexPlusThemeSyncVersion" in text
+    assert "function codexPlusThemeFromValue" in text
+    assert "function codexPlusThemeFromColorScheme" in text
+    assert "function codexPlusThemeFromNode" in text
+    assert "function codexPlusHostTheme" in text
+    assert "function syncCodexPlusModalTheme" in text
+    assert "function installCodexPlusThemeSync" in text
+    assert "data-codex-plus-theme" in text
+    assert 'node.dataset.codexPlusTheme = theme' in text
+    assert 'window.matchMedia?.("(prefers-color-scheme: dark)")' in text
+    assert 'split(/\\s+/)[0]' in text
+    assert '"data-theme", "data-color-theme", "data-mode", "data-color-mode", "style", "color-scheme"' in text
+    assert 'syncCodexPlusModalTheme(overlay)' in text
+    assert "installCodexPlusThemeSync();\n    installCodexPlusMenu();" in text
+
+    assert '--codex-plus-modal-background: #ffffff' in text
+    assert '--codex-plus-modal-background: #2b2b2b' in text
+    assert '--codex-plus-modal-muted-color' in text
+    assert '--codex-plus-modal-button-background' in text
+    assert '--codex-plus-modal-toggle-background' in text
+    assert '--codex-plus-modal-scrollbar-color' in text
+    assert '.codex-plus-modal-overlay[data-codex-plus-theme="light"]' in text
+    assert '.codex-plus-modal-overlay[data-codex-plus-theme="dark"]' in text
+    assert '.codex-plus-modal-content[data-codex-plus-theme="light"]' in text
+    assert '.codex-plus-modal-content[data-codex-plus-theme="dark"]' in text
+
+    modal_start = text.index(".codex-plus-modal-content {")
+    modal_end = text.index("\n      .codex-plus-modal-header", modal_start)
+    modal_style = text[modal_start:modal_end]
+    assert "background: var(--codex-plus-modal-background)" in modal_style
+    assert "color: var(--codex-plus-modal-color)" in modal_style
+    assert "background: #2b2b2b" not in modal_style
+    assert "color: #f3f4f6" not in modal_style
 
 
 def test_renderer_script_settings_tabs_stay_product_only():
@@ -956,8 +1038,6 @@ def test_renderer_script_can_move_sidebar_threads_between_projects():
     assert "openProjectMoveMenuForRow" in text
     assert "existingMoveButton" in text
     assert "普通对话" in text
-
-
 def test_renderer_script_contains_zed_remote_setting_and_menu_copy():
     text = Path("codex_session_delete/inject/renderer-inject.js").read_text(encoding="utf-8")
 
