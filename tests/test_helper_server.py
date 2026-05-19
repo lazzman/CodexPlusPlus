@@ -2,6 +2,7 @@ import json
 import threading
 import urllib.error
 import urllib.request
+from importlib import resources
 
 from codex_session_delete.helper_server import HelperServer
 from codex_session_delete.models import BulkExportResult, DeleteResult, DeleteStatus, ExportResult, ExportStatus, SessionRef

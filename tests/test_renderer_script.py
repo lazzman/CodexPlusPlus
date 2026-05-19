@@ -1256,7 +1256,8 @@ def test_renderer_script_tracks_thread_switches_for_scroll_restore():
     assert "storedMethod?.name === \"codexThreadScrollPatchedHistory\"" in text
     assert "currentMethod?.name === \"codexThreadScrollPatchedHistory\"" in text
     assert 'mutation.type === "attributes" && mutation.attributeName === "aria-current"' in text
-    assert 'attributes: true, attributeFilter: ["aria-current"]' in text
+    assert 'attributeFilter: ["aria-current", "disabled", "aria-disabled", "class", "style"]' in text
+    assert "attributes: true" in text
     assert "setTimeout(() => {" in text[text.index("function scheduleThreadScrollSync"):text.index("\n\n  function installThreadScrollRouteHooks")]
     assert "updateThreadScrollHandlers();" in text[text.index("function scanLightweight"):text.index("\n\n  function scanDeferred")]
     assert "scheduleThreadScrollSync(true);" in text[text.index("function scanLightweight"):text.index("\n\n  function scanDeferred")]
